@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AppProvider } from './store';
 import { Layout } from './components/Layout';
+import ScrollToTop from './components/ScrollToTop';
 import HomePage from './pages/Home';
 import { ServicesCatalog, ServiceDetail } from './pages/Services';
 import ApplicationWizard from './pages/ApplicationWizard';
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <AppProvider>
       <HashRouter>
+        <ScrollToTop />
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />

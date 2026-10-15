@@ -14,7 +14,7 @@ export function ServicesCatalog() {
   const currency = state.preferences.currency;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10 animate-fade-in">
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('دليل الخدمات', 'Services')}</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">{t('اختر الخدمة المناسبة', 'Choose your service')}</p>
@@ -71,7 +71,7 @@ export function ServiceDetail({ serviceId }: { serviceId: string }) {
   const totalCost = convertCurrency(totalCostAED, currency);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
       <Link to="/services" className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 mb-4">
         {lang === 'ar' ? <ArrowRight size={12} /> : <ArrowLeft size={12} />}{t('الخدمات', 'Services')}
       </Link>

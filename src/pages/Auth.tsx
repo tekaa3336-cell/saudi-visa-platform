@@ -20,7 +20,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4 py-10">
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-10 animate-fade-in">
       <Card className="w-full max-w-sm p-6">
         <div className="text-center mb-6">
           <div className="w-12 h-12 mx-auto bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center mb-3"><Plane size={20} className="text-white" /></div>
@@ -74,7 +74,7 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4 py-10">
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-10 animate-fade-in">
       <Card className="w-full max-w-sm p-6">
         <h1 className="text-xl font-bold text-slate-900 dark:text-white text-center mb-4">{t('إنشاء حساب', 'Register')}</h1>
         <div className="grid grid-cols-2 gap-2 mb-4">

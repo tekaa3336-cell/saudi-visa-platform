@@ -112,6 +112,29 @@ npm run build
 
 The built files will be in the `dist/` directory.
 
+## 📜 Scroll Behavior
+
+The application implements automatic scroll-to-top functionality for better user experience:
+
+### Features
+- **Route Change Scroll**: Automatically scrolls to top when navigating between pages
+- **Smooth Animation**: Uses smooth scrolling behavior for pleasant transitions
+- **Wizard Step Scroll**: Application wizard scrolls to top when advancing between steps
+- **CSS Smooth Scroll**: Global `scroll-behavior: smooth` for anchor links
+
+### Implementation
+- `src/components/ScrollToTop.tsx`: Component using `useLocation` and `useEffect`
+- Integrated in `App.tsx` within `HashRouter`
+- Additional `useEffect` in `ApplicationWizard.tsx` for step changes
+- All pages include `animate-fade-in` class for consistent entry animations
+
+### How It Works
+1. User navigates to any page → ScrollToTop detects route change
+2. Window smoothly scrolls to position (0, 0)
+3. Page content fades in with animation
+4. In wizard: each step change triggers scroll to top
+5. CSS `scroll-behavior: smooth` ensures all anchor links scroll smoothly
+
 ## 🌍 Customer Preferences
 
 The platform includes a comprehensive customer preferences system:

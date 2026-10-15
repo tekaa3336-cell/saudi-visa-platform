@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES } from '../data';
@@ -25,6 +25,11 @@ export default function ApplicationWizard() {
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, { name: string }[]>>({});
   const [submitted, setSubmitted] = useState(false);
   const [referenceCode, setReferenceCode] = useState('');
+
+  // Scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+  }, [step]);
 
   if (!service) return (
     <div className="max-w-4xl mx-auto px-4 py-10 text-center">
@@ -81,7 +86,7 @@ export default function ApplicationWizard() {
   const govFeeConverted = convertCurrency(service.pricing.governmentFee * applicants.length, currency);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
+    <div className="max-w-3xl mx-auto px-4 py-6 animate-fade-in">
       <Link to={`/services/${service.id}`} className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 mb-3">
         {lang === 'ar' ? <ArrowRight size={12} /> : <ArrowLeft size={12} />}{service.name[lang]}
       </Link>

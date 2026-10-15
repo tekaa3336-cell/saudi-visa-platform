@@ -22,7 +22,7 @@ export function CustomerDashboard() {
   const selectedApplication = myApps.find(a => a.id === selectedApp);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-4 py-6 animate-fade-in">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('مرحباً', 'Welcome')}, {state.currentUser?.name}</h1>
@@ -136,7 +136,7 @@ export function AgencyDashboard() {
   const agencyApps = state.applications.filter(a => a.agencyId === state.currentUser?.agencyId);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-4 py-6 animate-fade-in">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('لوحة الوكالة', 'Agency Dashboard')}</h1>
@@ -239,7 +239,7 @@ export function AdminDashboard() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-4 py-6 animate-fade-in">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('لوحة الإدارة', 'Admin Dashboard')}</h1>

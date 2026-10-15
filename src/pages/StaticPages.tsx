@@ -10,7 +10,7 @@ export function FAQPage() {
   const [openFaq, setOpenFaq] = useState<string | null>(null);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
+    <div className="max-w-3xl mx-auto px-4 py-10 animate-fade-in">
       <h1 className="text-2xl font-bold text-slate-900 dark:text-white text-center mb-6">{t('الأسئلة الشائعة', 'FAQ')}</h1>
       <div className="space-y-2">
         {MOCK_FAQS.map(faq => (
@@ -44,7 +44,7 @@ export function ContactPage() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
+    <div className="max-w-4xl mx-auto px-4 py-10 animate-fade-in">
       <h1 className="text-2xl font-bold text-slate-900 dark:text-white text-center mb-6">{t('تواصل معنا', 'Contact Us')}</h1>
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="space-y-3">
@@ -71,7 +71,7 @@ export function ContactPage() {
 export function PrivacyPage() {
   const { t } = useApp();
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
+    <div className="max-w-3xl mx-auto px-4 py-10 animate-fade-in">
       <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">{t('سياسة الخصوصية', 'Privacy Policy')}</h1>
       <Card className="p-6">
         <div className="space-y-4 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -91,7 +91,7 @@ export function PrivacyPage() {
 export function TermsPage() {
   const { t } = useApp();
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
+    <div className="max-w-3xl mx-auto px-4 py-10 animate-fade-in">
       <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">{t('الشروط والأحكام', 'Terms & Conditions')}</h1>
       <Card className="p-6">
         <div className="space-y-4 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -110,7 +110,7 @@ export function TermsPage() {
 export function AgencyInfoPage() {
   const { t } = useApp();
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
+    <div className="max-w-4xl mx-auto px-4 py-10 animate-fade-in">
       <div className="text-center mb-8">
         <div className="w-14 h-14 mx-auto bg-gradient-to-br from-amber-500 to-amber-700 rounded-xl flex items-center justify-center mb-3"><Building2 size={24} className="text-white" /></div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('انضم كوكالة', 'Join as Agency')}</h1>
@@ -163,7 +163,7 @@ export function ComingSoonPage({ type }: { type: 'hotels' | 'flights' }) {
   const [registered, setRegistered] = useState(false);
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-16 text-center">
+    <div className="max-w-xl mx-auto px-4 py-16 text-center animate-fade-in">
       <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mb-4">
         <Building2 size={28} className="text-white" />
       </div>

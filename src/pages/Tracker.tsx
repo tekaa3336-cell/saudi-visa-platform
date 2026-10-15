@@ -20,7 +20,7 @@ export default function TrackerPage() {
   const getStepIndex = (status: string) => statusSteps.indexOf(status);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10">
+    <div className="max-w-2xl mx-auto px-4 py-10 animate-fade-in">
       <div className="text-center mb-6">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('تتبع طلبك', 'Track Application')}</h1>
         <p className="text-sm text-slate-500">{t('أدخل رقم المرجع لمعرفة الحالة', 'Enter reference to check status')}</p>
