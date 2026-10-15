@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES } from '../data';
+import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button, Input } from '../components/Layout';
 import {
   Plane, Users, UserCheck, Briefcase, HardHat, Moon, Settings,
@@ -14,6 +15,7 @@ const iconMap: Record<string, React.ElementType> = { Plane, Users, UserCheck, Br
 export default function HomePage() {
   const { state, t } = useApp();
   const lang = state.lang;
+  const currency = state.preferences.currency;
   const [trackCode, setTrackCode] = useState('');
   const [trackResult, setTrackResult] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -89,6 +91,8 @@ export default function HomePage() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {SERVICES.map((service) => {
             const Icon = iconMap[service.icon] || Plane;
+            const totalAED = service.pricing.serviceFee + service.pricing.governmentFee;
+            const convertedTotal = convertCurrency(totalAED, currency);
             return (
               <Link key={service.id} to={`/services/${service.id}`}>
                 <Card className="p-5 hover:shadow-lg hover:border-emerald-200 dark:hover:border-emerald-800 transition-all cursor-pointer group h-full">
@@ -99,7 +103,7 @@ export default function HomePage() {
                   <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 line-clamp-2">{service.shortDesc[lang]}</p>
                   <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-500 flex items-center gap-1"><Clock size={10} />{service.processingTime[lang]}</span>
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{service.pricing.serviceFee + service.pricing.governmentFee} {service.pricing.currency}</span>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(convertedTotal, currency, lang)}</span>
                   </div>
                 </Card>
               </Link>

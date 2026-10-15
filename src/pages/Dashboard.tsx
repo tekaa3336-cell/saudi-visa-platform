@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES, getStatusLabel } from '../data';
+import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button, Badge, StatusBadge, Modal } from '../components/Layout';
 import { FileText, Clock, CheckCircle2, Bell, Plus, Building2, BarChart3, Upload, Download, ChevronRight } from 'lucide-react';
 import type { ApplicationStatus } from '../types';
@@ -10,6 +11,7 @@ import type { ApplicationStatus } from '../types';
 export function CustomerDashboard() {
   const { state, t } = useApp();
   const lang = state.lang;
+  const currency = state.preferences.currency;
   const navigate = useNavigate();
   const [selectedApp, setSelectedApp] = useState<string | null>(null);
 
@@ -100,7 +102,7 @@ export function CustomerDashboard() {
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div><span className="text-slate-500">{t('متقدمين', 'Applicants')}:</span> <span className="font-medium">{selectedApplication.applicants.length}</span></div>
-              <div><span className="text-slate-500">{t('التكلفة', 'Cost')}:</span> <span className="font-medium">{selectedApplication.totalCost} AED</span></div>
+              <div><span className="text-slate-500">{t('التكلفة', 'Cost')}:</span> <span className="font-medium">{formatCurrency(convertCurrency(selectedApplication.totalCost, currency), currency, lang)}</span></div>
             </div>
             <div>
               <h4 className="text-xs font-semibold mb-1">{t('السجل', 'Timeline')}</h4>
@@ -125,6 +127,7 @@ export function CustomerDashboard() {
 export function AgencyDashboard() {
   const { state, t } = useApp();
   const lang = state.lang;
+  const currency = state.preferences.currency;
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
 
@@ -165,7 +168,7 @@ export function AgencyDashboard() {
           { label: t('إجمالي', 'Total'), value: agencyApps.length },
           { label: t('معالجة', 'Processing'), value: agencyApps.filter(a => a.status === 'processing').length },
           { label: t('مكتملة', 'Done'), value: agencyApps.filter(a => a.status === 'completed').length },
-          { label: t('إيرادات', 'Revenue'), value: `${agencyApps.reduce((s, a) => s + a.totalCost, 0)}` },
+          { label: t('إيرادات', 'Revenue'), value: formatCurrency(convertCurrency(agencyApps.reduce((s, a) => s + a.totalCost, 0), currency), currency, lang) },
         ].map((stat, idx) => (
           <Card key={idx} className="p-3"><p className="text-lg font-bold text-slate-900 dark:text-white">{stat.value}</p><p className="text-[10px] text-slate-500">{stat.label}</p></Card>
         ))}
@@ -193,7 +196,7 @@ export function AgencyDashboard() {
                     <td className="py-2 px-1 font-medium text-slate-900 dark:text-white" dir="ltr">{app.referenceCode}</td>
                     <td className="py-2 px-1 text-slate-600 dark:text-slate-400">{service?.name[lang]}</td>
                     <td className="py-2 px-1"><StatusBadge status={app.status} lang={lang} /></td>
-                    <td className="py-2 px-1 font-medium">{app.totalCost} AED</td>
+                    <td className="py-2 px-1 font-medium">{formatCurrency(convertCurrency(app.totalCost, currency), currency, lang)}</td>
                   </tr>
                 );
               })}

@@ -57,7 +57,7 @@ export function LoginPage() {
 }
 
 export function RegisterPage() {
-  const { login, t } = useApp();
+  const { login, state, t } = useApp();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
   const [error, setError] = useState('');
@@ -67,7 +67,9 @@ export function RegisterPage() {
     e.preventDefault();
     if (form.password !== form.confirm) { setError(t('كلمات المرور غير متطابقة', 'Passwords mismatch')); return; }
     if (form.password.length < 6) { setError(t('6 أحرف على الأقل', 'Min 6 characters')); return; }
+    // Login and save current preferences to user profile
     login('customer@demo.com', '');
+    // Preferences are already saved in localStorage and will be loaded on login
     navigate('/dashboard');
   };
 

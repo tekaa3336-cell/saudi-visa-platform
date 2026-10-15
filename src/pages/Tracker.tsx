@@ -3,10 +3,12 @@ import { useApp } from '../store';
 import { Card, Button, Input, StatusBadge } from '../components/Layout';
 import { Search, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import { getStatusLabel } from '../data';
+import { convertCurrency, formatCurrency } from '../preferences';
 
 export default function TrackerPage() {
   const { state, t } = useApp();
   const lang = state.lang;
+  const currency = state.preferences.currency;
   const [refCode, setRefCode] = useState('');
   const [searched, setSearched] = useState(false);
 
@@ -77,7 +79,7 @@ export default function TrackerPage() {
               <div><span className="text-slate-500">{t('الخدمة', 'Service')}:</span> <span className="font-medium">{foundApp.serviceType.replace('_', ' ')}</span></div>
               <div><span className="text-slate-500">{t('متقدمين', 'Applicants')}:</span> <span className="font-medium">{foundApp.applicants.length}</span></div>
               <div><span className="text-slate-500">{t('التاريخ', 'Date')}:</span> <span className="font-medium">{foundApp.createdAt}</span></div>
-              <div><span className="text-slate-500">{t('التكلفة', 'Cost')}:</span> <span className="font-medium">{foundApp.totalCost} AED</span></div>
+              <div><span className="text-slate-500">{t('التكلفة', 'Cost')}:</span> <span className="font-medium">{formatCurrency(convertCurrency(foundApp.totalCost, currency), currency, lang)}</span></div>
             </div>
           </Card>
 

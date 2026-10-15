@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES } from '../data';
+import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button, Input, Select, Stepper } from '../components/Layout';
 import { Upload, CheckCircle2, FileText, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +13,7 @@ export default function ApplicationWizard() {
   const { state, t, addApplication } = useApp();
   const navigate = useNavigate();
   const lang = state.lang;
+  const currency = state.preferences.currency;
   const service = SERVICES.find(s => s.id === serviceId);
 
   const [step, setStep] = useState(0);
@@ -73,7 +75,10 @@ export default function ApplicationWizard() {
     setStep(4);
   };
 
-  const totalCost = (service.pricing.serviceFee + service.pricing.governmentFee) * applicants.length;
+  const totalCostAED = (service.pricing.serviceFee + service.pricing.governmentFee) * applicants.length;
+  const totalCost = convertCurrency(totalCostAED, currency);
+  const serviceFeeConverted = convertCurrency(service.pricing.serviceFee * applicants.length, currency);
+  const govFeeConverted = convertCurrency(service.pricing.governmentFee * applicants.length, currency);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
@@ -196,9 +201,9 @@ export default function ApplicationWizard() {
             </div>
             <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
               <div className="space-y-1 text-xs">
-                <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">{t('رسوم خدمة', 'Service')} ({applicants.length}x)</span><span className="font-medium">{service.pricing.serviceFee * applicants.length} {service.pricing.currency}</span></div>
-                {service.pricing.governmentFee > 0 && <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">{t('حكومي', 'Govt')} ({applicants.length}x)</span><span className="font-medium">{service.pricing.governmentFee * applicants.length} {service.pricing.currency}</span></div>}
-                <div className="border-t border-emerald-200 dark:border-emerald-800 pt-1 flex justify-between font-bold"><span className="text-emerald-800 dark:text-emerald-300">{t('الإجمالي', 'Total')}</span><span className="text-emerald-700 dark:text-emerald-400">{totalCost} {service.pricing.currency}</span></div>
+                <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">{t('رسوم خدمة', 'Service')} ({applicants.length}x)</span><span className="font-medium">{formatCurrency(serviceFeeConverted, currency, lang)}</span></div>
+                {service.pricing.governmentFee > 0 && <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">{t('حكومي', 'Govt')} ({applicants.length}x)</span><span className="font-medium">{formatCurrency(govFeeConverted, currency, lang)}</span></div>}
+                <div className="border-t border-emerald-200 dark:border-emerald-800 pt-1 flex justify-between font-bold"><span className="text-emerald-800 dark:text-emerald-300">{t('الإجمالي', 'Total')}</span><span className="text-emerald-700 dark:text-emerald-400">{formatCurrency(totalCost, currency, lang)}</span></div>
               </div>
               <p className="text-[10px] text-slate-500 mt-2">{t('⚠️ لا يتم التحصيل الآن. يُؤكد المبلغ قبل الدفع.', '⚠️ No payment now. Amount confirmed before payment.')}</p>
             </div>

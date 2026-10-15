@@ -2,16 +2,58 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES } from '../data';
+import { COUNTRIES, CURRENCIES, getCountryByCode, getCurrencyByCode } from '../preferences';
+import { WelcomeModal } from './WelcomeModal';
 import {
   Menu, X, Globe, Moon, Sun, User, LogOut, Plane, Phone,
-  MessageCircle, Mail, Home, FileText, BarChart3, HelpCircle
+  MessageCircle, Mail, Home, FileText, BarChart3, HelpCircle,
+  ChevronDown, MapPin, DollarSign, Languages
 } from 'lucide-react';
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { state, setLang, setTheme, logout, t } = useApp();
+  const { state, setLang, setTheme, logout, setPreferences, markWelcomeSeen, t } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showCountryMenu, setShowCountryMenu] = useState(false);
+  const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(!state.hasSeenWelcome);
   const location = useLocation();
   const navigate = useNavigate();
+
+  const selectedCountry = getCountryByCode(state.preferences.country);
+  const selectedCurrency = getCurrencyByCode(state.preferences.currency);
+
+  const handleCountryChange = (code: string) => {
+    const country = getCountryByCode(code);
+    if (country) {
+      setPreferences({
+        ...state.preferences,
+        country: code,
+        currency: country.currency,
+      });
+    }
+    setShowCountryMenu(false);
+  };
+
+  const handleCurrencyChange = (code: string) => {
+    setPreferences({
+      ...state.preferences,
+      currency: code,
+    });
+    setShowCurrencyMenu(false);
+  };
+
+  const handleLangChange = () => {
+    const newLang = state.lang === 'ar' ? 'en' : 'ar';
+    setPreferences({
+      ...state.preferences,
+      language: newLang,
+    });
+  };
+
+  const handleCloseWelcome = () => {
+    markWelcomeSeen();
+    setShowWelcome(false);
+  };
 
   const navLinks = [
     { path: '/', label: t('الرئيسية', 'Home'), icon: Home },
@@ -29,19 +71,103 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="bg-slate-900 text-white text-xs py-2 px-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1"><Phone size={11} /><span dir="ltr">+971 4 XXX XXXX</span></span>
-            <span className="hidden sm:flex items-center gap-1"><Mail size={11} />info@elitevisa.demo</span>
+            <span className="hidden md:flex items-center gap-1"><Phone size={11} /><span dir="ltr">+971 4 XXX XXXX</span></span>
+            <span className="hidden lg:flex items-center gap-1"><Mail size={11} />info@elitevisa.demo</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setLang(state.lang === 'ar' ? 'en' : 'ar')} className="flex items-center gap-1 hover:text-emerald-400">
-              <Globe size={13} /><span>{state.lang === 'ar' ? 'EN' : 'عربي'}</span>
+          
+          {/* Preferences Selectors */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* Country Selector */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowCountryMenu(!showCountryMenu); setShowCurrencyMenu(false); }}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 transition-colors"
+                title={t('اختر البلد', 'Select Country')}
+              >
+                <span className="text-sm">{selectedCountry?.flag || '🌍'}</span>
+                <span className="hidden sm:inline">{selectedCountry?.code || 'SA'}</span>
+                <ChevronDown size={10} className="hidden sm:block" />
+              </button>
+              {showCountryMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowCountryMenu(false)} />
+                  <div className="absolute top-full mt-1 end-0 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 min-w-[200px] max-h-64 overflow-y-auto z-50">
+                    {COUNTRIES.map(country => (
+                      <button
+                        key={country.code}
+                        onClick={() => handleCountryChange(country.code)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded text-start text-xs hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                          state.preferences.country === country.code ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <span className="text-base">{country.flag}</span>
+                        <span className="flex-1 truncate">{country.name[state.lang]}</span>
+                        {state.preferences.country === country.code && <span className="text-emerald-600">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Currency Selector */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowCurrencyMenu(!showCurrencyMenu); setShowCountryMenu(false); }}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 transition-colors"
+                title={t('اختر العملة', 'Select Currency')}
+              >
+                <DollarSign size={11} />
+                <span className="hidden sm:inline">{state.preferences.currency}</span>
+                <ChevronDown size={10} className="hidden sm:block" />
+              </button>
+              {showCurrencyMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowCurrencyMenu(false)} />
+                  <div className="absolute top-full mt-1 end-0 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 min-w-[220px] max-h-64 overflow-y-auto z-50">
+                    {CURRENCIES.map(currency => (
+                      <button
+                        key={currency.code}
+                        onClick={() => handleCurrencyChange(currency.code)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded text-start text-xs hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                          state.preferences.currency === currency.code ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <span className="font-mono font-bold">{currency.symbol}</span>
+                        <span className="flex-1 truncate">{currency.name[state.lang]}</span>
+                        <span className="text-slate-400">{currency.code}</span>
+                        {state.preferences.currency === currency.code && <span className="text-emerald-600">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Language Toggle */}
+            <button
+              onClick={handleLangChange}
+              className="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 transition-colors"
+              title={t('تغيير اللغة', 'Change Language')}
+            >
+              <Languages size={12} />
+              <span>{state.lang === 'ar' ? 'EN' : 'عربي'}</span>
             </button>
-            <button onClick={() => setTheme(state.theme === 'light' ? 'dark' : 'light')} className="hover:text-emerald-400">
+
+            {/* Theme Toggle */}
+            <button
+              onClick={() => setTheme(state.theme === 'light' ? 'dark' : 'light')}
+              className="p-1.5 rounded hover:bg-slate-800 transition-colors"
+              title={t('تغيير المظهر', 'Toggle Theme')}
+            >
               {state.theme === 'light' ? <Moon size={13} /> : <Sun size={13} />}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Welcome Modal */}
+      <WelcomeModal isOpen={showWelcome} onClose={handleCloseWelcome} />
 
       {/* Navigation */}
       <nav className="bg-white dark:bg-slate-900 shadow-sm sticky top-0 z-50 border-b border-slate-200 dark:border-slate-800">

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES } from '../data';
+import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button } from '../components/Layout';
 import { Plane, Users, UserCheck, Briefcase, HardHat, Moon, Settings, ArrowLeft, ArrowRight, Clock, DollarSign } from 'lucide-react';
 
@@ -10,6 +11,7 @@ const iconMap: Record<string, React.ElementType> = { Plane, Users, UserCheck, Br
 export function ServicesCatalog() {
   const { state, t } = useApp();
   const lang = state.lang;
+  const currency = state.preferences.currency;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -20,6 +22,8 @@ export function ServicesCatalog() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {SERVICES.map((service) => {
           const Icon = iconMap[service.icon] || Plane;
+          const totalAED = service.pricing.serviceFee + service.pricing.governmentFee;
+          const convertedTotal = convertCurrency(totalAED, currency);
           return (
             <Link key={service.id} to={`/services/${service.id}`}>
               <Card className="p-5 hover:shadow-lg hover:border-emerald-200 dark:hover:border-emerald-800 transition-all h-full">
@@ -30,7 +34,7 @@ export function ServicesCatalog() {
                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 line-clamp-2">{service.shortDesc[lang]}</p>
                 <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                   <span className="text-[10px] text-slate-500 flex items-center gap-1"><Clock size={10} />{service.processingTime[lang]}</span>
-                  <span className="text-xs font-bold text-emerald-600">{service.pricing.serviceFee + service.pricing.governmentFee} {service.pricing.currency}</span>
+                  <span className="text-xs font-bold text-emerald-600">{formatCurrency(convertedTotal, currency, lang)}</span>
                 </div>
               </Card>
             </Link>
@@ -50,6 +54,7 @@ export function ServicesCatalog() {
 export function ServiceDetail({ serviceId }: { serviceId: string }) {
   const { state, t } = useApp();
   const lang = state.lang;
+  const currency = state.preferences.currency;
   const service = SERVICES.find(s => s.id === serviceId);
 
   if (!service) return (
@@ -60,7 +65,10 @@ export function ServiceDetail({ serviceId }: { serviceId: string }) {
   );
 
   const Icon = iconMap[service.icon] || Plane;
-  const totalCost = service.pricing.serviceFee + service.pricing.governmentFee;
+  const totalCostAED = service.pricing.serviceFee + service.pricing.governmentFee;
+  const convertedServiceFee = convertCurrency(service.pricing.serviceFee, currency);
+  const convertedGovFee = convertCurrency(service.pricing.governmentFee, currency);
+  const totalCost = convertCurrency(totalCostAED, currency);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -110,9 +118,9 @@ export function ServiceDetail({ serviceId }: { serviceId: string }) {
           <Card className="p-4 sticky top-20">
             <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t('التكلفة', 'Cost')}</h3>
             <div className="space-y-2 mb-3">
-              <div className="flex justify-between text-xs"><span className="text-slate-600 dark:text-slate-400">{t('رسوم خدمة', 'Service')}</span><span className="font-medium">{service.pricing.serviceFee} {service.pricing.currency}</span></div>
-              {service.pricing.governmentFee > 0 && <div className="flex justify-between text-xs"><span className="text-slate-600 dark:text-slate-400">{t('حكومي', 'Govt')}</span><span className="font-medium">{service.pricing.governmentFee} {service.pricing.currency}</span></div>}
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between"><span className="font-bold text-sm">{t('الإجمالي', 'Total')}</span><span className="font-bold text-emerald-600">{totalCost} {service.pricing.currency}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-slate-600 dark:text-slate-400">{t('رسوم خدمة', 'Service')}</span><span className="font-medium">{formatCurrency(convertedServiceFee, currency, lang)}</span></div>
+              {service.pricing.governmentFee > 0 && <div className="flex justify-between text-xs"><span className="text-slate-600 dark:text-slate-400">{t('حكومي', 'Govt')}</span><span className="font-medium">{formatCurrency(convertedGovFee, currency, lang)}</span></div>}
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between"><span className="font-bold text-sm">{t('الإجمالي', 'Total')}</span><span className="font-bold text-emerald-600">{formatCurrency(totalCost, currency, lang)}</span></div>
             </div>
             <p className="text-[10px] text-slate-500 mb-3 bg-slate-50 dark:bg-slate-800 rounded p-1.5">{t('⚡ تُؤكد قبل الدفع', '⚡ Confirmed before payment')}</p>
             <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-3"><Clock size={10} /><span>{service.processingTime[lang]}</span></div>

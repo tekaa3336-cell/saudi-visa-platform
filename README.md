@@ -112,6 +112,37 @@ npm run build
 
 The built files will be in the `dist/` directory.
 
+## 🌍 Customer Preferences
+
+The platform includes a comprehensive customer preferences system:
+
+### Features
+- **First-Time Welcome Modal**: Elegant popup on first visit to select country, currency, and language
+- **Persistent Top Bar Selectors**: Always-accessible dropdowns in the header for quick changes
+- **Dynamic Currency Conversion**: All prices automatically convert based on selected currency
+- **RTL/LTR Support**: Automatic layout direction switching based on language selection
+- **Profile Sync**: Preferences saved to user profile on login/registration
+
+### Supported Countries (15)
+Saudi Arabia, UAE, Egypt, Kuwait, Qatar, Bahrain, Oman, Jordan, Pakistan, India, UK, USA, Malaysia, Indonesia, Turkey
+
+### Supported Currencies (16)
+SAR, AED, USD, EGP, KWD, QAR, BHD, OMR, JOD, GBP, EUR, PKR, INR, MYR, IDR, TRY
+
+### How It Works
+1. **First Visit**: Welcome modal appears automatically (tracked via localStorage)
+2. **Selection**: User chooses country → auto-selects default currency and language
+3. **Persistence**: Preferences saved to localStorage and synced with user profile on login
+4. **Dynamic Updates**: All prices throughout the site update instantly
+5. **Top Bar Access**: Users can change preferences anytime without page reload
+
+### Technical Implementation
+- `src/preferences.ts`: Country/currency data and conversion utilities
+- `src/components/WelcomeModal.tsx`: First-visit modal component
+- `src/store.tsx`: State management with preferences persistence
+- `src/components/Layout.tsx`: Top bar selectors with dropdowns
+- Currency conversion uses approximate rates (for demo purposes)
+
 ## 🌐 Routes
 
 | Route | Description |

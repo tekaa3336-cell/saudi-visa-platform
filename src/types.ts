@@ -69,6 +69,13 @@ export interface User {
   nationality?: string;
   createdAt: string;
   isVerified: boolean;
+  preferences?: UserPreferences;
+}
+
+export interface UserPreferences {
+  country: string;
+  currency: string;
+  language: Lang;
 }
 
 export interface Agency {
