@@ -12,68 +12,35 @@ export function ServicesCatalog() {
   const lang = state.lang;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12 animate-fade-in">
-      <div className="text-center mb-12">
-        <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
-          {t('دليل الخدمات', 'Services Catalog')}
-        </h1>
-        <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-          {t('اختر الخدمة المناسبة لاحتياجاتك من مجموعتنا الشاملة', 'Choose the service that fits your needs from our comprehensive collection')}
-        </p>
+    <div className="max-w-6xl mx-auto px-4 py-10">
+      <div className="text-center mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('دليل الخدمات', 'Services')}</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400">{t('اختر الخدمة المناسبة', 'Choose your service')}</p>
       </div>
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {SERVICES.map((service) => {
           const Icon = iconMap[service.icon] || Plane;
           return (
-            <Link key={service.id} to={`/services/${service.id}`} className="group">
-              <Card className="p-6 h-full hover:shadow-lg hover:border-emerald-200 dark:hover:border-emerald-800 transition-all">
-                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <Icon size={24} className="text-white" />
+            <Link key={service.id} to={`/services/${service.id}`}>
+              <Card className="p-5 hover:shadow-lg hover:border-emerald-200 dark:hover:border-emerald-800 transition-all h-full">
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${service.color} flex items-center justify-center mb-3`}>
+                  <Icon size={18} className="text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-                  {service.name[lang]}
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed line-clamp-2">
-                  {service.shortDesc[lang]}
-                </p>
-                <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mb-4">
-                  <span className="flex items-center gap-1"><Clock size={12} />{service.processingTime[lang]}</span>
-                </div>
-                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-navy-800">
-                  <div className="flex items-center gap-1 text-sm">
-                    <DollarSign size={14} className="text-emerald-600" />
-                    <span className="font-bold text-slate-900 dark:text-white">{service.pricing.serviceFee + service.pricing.governmentFee}</span>
-                    <span className="text-xs text-slate-500">{service.pricing.currency}</span>
-                  </div>
-                  <span className="text-sm text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                    {t('التفاصيل', 'Details')}
-                    {lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
-                  </span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">{service.name[lang]}</h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 line-clamp-2">{service.shortDesc[lang]}</p>
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-500 flex items-center gap-1"><Clock size={10} />{service.processingTime[lang]}</span>
+                  <span className="text-xs font-bold text-emerald-600">{service.pricing.serviceFee + service.pricing.governmentFee} {service.pricing.currency}</span>
                 </div>
               </Card>
             </Link>
           );
         })}
       </div>
-
-      {/* Comparison Note */}
-      <Card className="mt-12 p-6 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
-            <DollarSign size={16} className="text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div>
-            <h4 className="font-semibold text-emerald-800 dark:text-emerald-300 mb-1">
-              {t('ملاحظة حول التسعير', 'Pricing Note')}
-            </h4>
-            <p className="text-sm text-emerald-700 dark:text-emerald-400 leading-relaxed">
-              {t(
-                'الأسعار المعروضة هي تقديرية وقد تختلف حسب الجنسية ونوع الطلب. يتم تقسيم التكلفة بوضوح إلى رسوم خدمة ورسوم حكومية. الأسعار النهائية تُؤكد قبل الدفع.',
-                'Displayed prices are estimates and may vary based on nationality and application type. Costs are clearly split into service fees and government fees. Final prices are confirmed before payment.'
-              )}
-            </p>
-          </div>
+      <Card className="mt-8 p-4 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
+        <div className="flex items-start gap-2">
+          <DollarSign size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+          <p className="text-xs text-emerald-700 dark:text-emerald-400">{t('الأسعار تقديرية. تُقسم إلى رسوم خدمة ورسوم حكومية. تُؤكد قبل الدفع.', 'Prices are estimates. Split into service and government fees. Confirmed before payment.')}</p>
         </div>
       </Card>
     </div>
@@ -85,134 +52,81 @@ export function ServiceDetail({ serviceId }: { serviceId: string }) {
   const lang = state.lang;
   const service = SERVICES.find(s => s.id === serviceId);
 
-  if (!service) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-12 text-center">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('الخدمة غير موجودة', 'Service Not Found')}</h2>
-        <Link to="/services" className="text-emerald-600 hover:underline mt-4 inline-block">{t('العودة للخدمات', 'Back to Services')}</Link>
-      </div>
-    );
-  }
+  if (!service) return (
+    <div className="max-w-4xl mx-auto px-4 py-10 text-center">
+      <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('غير موجودة', 'Not Found')}</h2>
+      <Link to="/services" className="text-emerald-600 text-sm hover:underline mt-2 inline-block">{t('العودة', 'Back')}</Link>
+    </div>
+  );
 
   const Icon = iconMap[service.icon] || Plane;
   const totalCost = service.pricing.serviceFee + service.pricing.governmentFee;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12 animate-fade-in">
-      {/* Header */}
-      <div className="mb-8">
-        <Link to="/services" className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 mb-4">
-          {lang === 'ar' ? <ArrowRight size={14} /> : <ArrowLeft size={14} />}
-          {t('جميع الخدمات', 'All Services')}
-        </Link>
-        <div className="flex items-start gap-4">
-          <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${service.color} flex items-center justify-center shrink-0`}>
-            <Icon size={28} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-2">
-              {service.name[lang]}
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">{service.shortDesc[lang]}</p>
-          </div>
-        </div>
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <Link to="/services" className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 mb-4">
+        {lang === 'ar' ? <ArrowRight size={12} /> : <ArrowLeft size={12} />}{t('الخدمات', 'Services')}
+      </Link>
+      <div className="flex items-start gap-3 mb-6">
+        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center shrink-0`}><Icon size={22} className="text-white" /></div>
+        <div><h1 className="text-xl font-bold text-slate-900 dark:text-white">{service.name[lang]}</h1><p className="text-xs text-slate-600 dark:text-slate-400">{service.shortDesc[lang]}</p></div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Description */}
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-900 dark:text-white mb-3">{t('عن الخدمة', 'About This Service')}</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{service.description[lang]}</p>
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="p-4">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-2">{t('عن الخدمة', 'About')}</h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{service.description[lang]}</p>
           </Card>
-
-          {/* Eligibility */}
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-900 dark:text-white mb-3">{t('الشروط والأهلية', 'Eligibility')}</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{service.eligibility[lang]}</p>
+          <Card className="p-4">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-2">{t('الشروط', 'Eligibility')}</h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400">{service.eligibility[lang]}</p>
           </Card>
-
-          {/* Required Documents */}
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-900 dark:text-white mb-4">{t('المستندات المطلوبة', 'Required Documents')}</h3>
-            <ul className="space-y-2">
+          <Card className="p-4">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t('المستندات المطلوبة', 'Documents')}</h3>
+            <ul className="space-y-1.5">
               {service.requiredDocuments.map((doc, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
-                  <span className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">{idx + 1}</span>
-                  </span>
+                <li key={idx} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400">
+                  <span className="w-4 h-4 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0 text-[10px] text-emerald-600 font-bold">{idx + 1}</span>
                   {doc[lang]}
                 </li>
               ))}
             </ul>
           </Card>
-
-          {/* Steps */}
-          <Card className="p-6">
-            <h3 className="font-bold text-slate-900 dark:text-white mb-4">{t('خطوات الإجراءات', 'Process Steps')}</h3>
-            <div className="space-y-3">
+          <Card className="p-4">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t('الخطوات', 'Steps')}</h3>
+            <div className="space-y-2">
               {service.steps.map((step, idx) => (
-                <div key={idx} className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-sm font-bold">
-                    {idx + 1}
-                  </div>
-                  <div className="pt-1">
-                    <p className="text-sm text-slate-700 dark:text-slate-300">{step[lang]}</p>
-                  </div>
+                <div key={idx} className="flex items-start gap-2">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px] font-bold">{idx + 1}</div>
+                  <p className="text-xs text-slate-700 dark:text-slate-300 pt-1">{step[lang]}</p>
                 </div>
               ))}
             </div>
           </Card>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Pricing Card */}
-          <Card className="p-6 sticky top-20">
-            <h3 className="font-bold text-slate-900 dark:text-white mb-4">{t('التكلفة التقديرية', 'Estimated Cost')}</h3>
-            <div className="space-y-3 mb-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600 dark:text-slate-400">{t('رسوم الخدمة', 'Service Fee')}</span>
-                <span className="font-medium text-slate-900 dark:text-white">{service.pricing.serviceFee} {service.pricing.currency}</span>
-              </div>
-              {service.pricing.governmentFee > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">{t('رسوم حكومية', 'Government Fee')}</span>
-                  <span className="font-medium text-slate-900 dark:text-white">{service.pricing.governmentFee} {service.pricing.currency}</span>
-                </div>
-              )}
-              <div className="border-t border-slate-200 dark:border-navy-700 pt-3 flex justify-between">
-                <span className="font-bold text-slate-900 dark:text-white">{t('الإجمالي', 'Total')}</span>
-                <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">{totalCost} {service.pricing.currency}</span>
-              </div>
+        <div>
+          <Card className="p-4 sticky top-20">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-3">{t('التكلفة', 'Cost')}</h3>
+            <div className="space-y-2 mb-3">
+              <div className="flex justify-between text-xs"><span className="text-slate-600 dark:text-slate-400">{t('رسوم خدمة', 'Service')}</span><span className="font-medium">{service.pricing.serviceFee} {service.pricing.currency}</span></div>
+              {service.pricing.governmentFee > 0 && <div className="flex justify-between text-xs"><span className="text-slate-600 dark:text-slate-400">{t('حكومي', 'Govt')}</span><span className="font-medium">{service.pricing.governmentFee} {service.pricing.currency}</span></div>}
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between"><span className="font-bold text-sm">{t('الإجمالي', 'Total')}</span><span className="font-bold text-emerald-600">{totalCost} {service.pricing.currency}</span></div>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mb-4 bg-slate-50 dark:bg-navy-800 rounded-lg p-2">
-              {t('⚡ الأسعار تقديرية وتُؤكد قبل الدفع', '⚡ Prices are estimates and confirmed before payment')}
-            </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-4">
-              <Clock size={12} />
-              <span>{t('وقت المعالجة', 'Processing time')}: {service.processingTime[lang]}</span>
-            </div>
-            <Link to={`/apply/${service.id}`}>
-              <Button className="w-full">{t('ابدأ الطلب', 'Start Application')}</Button>
-            </Link>
-            <Link to="/contact">
-              <Button variant="ghost" className="w-full mt-2">{t('استفسار', 'Inquiry')}</Button>
-            </Link>
-
-            {/* Wholesale Tiers */}
+            <p className="text-[10px] text-slate-500 mb-3 bg-slate-50 dark:bg-slate-800 rounded p-1.5">{t('⚡ تُؤكد قبل الدفع', '⚡ Confirmed before payment')}</p>
+            <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-3"><Clock size={10} /><span>{service.processingTime[lang]}</span></div>
+            <Link to={`/apply/${service.id}`}><Button className="w-full">{t('ابدأ الطلب', 'Start')}</Button></Link>
+            <Link to="/contact"><Button variant="ghost" className="w-full mt-1">{t('استفسار', 'Inquiry')}</Button></Link>
             {service.wholesaleTiers && service.wholesaleTiers.length > 0 && (
-              <div className="mt-6 pt-4 border-t border-slate-200 dark:border-navy-700">
-                <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">{t('أسعار الوكالات', 'Agency Pricing')}</h4>
-                <div className="space-y-1.5">
-                  {service.wholesaleTiers.map((tier, idx) => (
-                    <div key={idx} className="flex justify-between text-xs">
-                      <span className="text-slate-600 dark:text-slate-400">{tier.name[lang]} ({tier.minApplications}+)</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">-{tier.discountPercent}%</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+                <h4 className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5">{t('وكالات', 'Agencies')}</h4>
+                {service.wholesaleTiers.map((tier, idx) => (
+                  <div key={idx} className="flex justify-between text-[10px]">
+                    <span className="text-slate-600 dark:text-slate-400">{tier.name[lang]} ({tier.minApplications}+)</span>
+                    <span className="text-emerald-600 font-medium">-{tier.discountPercent}%</span>
+                  </div>
+                ))}
               </div>
             )}
           </Card>

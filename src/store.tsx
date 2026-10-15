@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useReducer, useCallback, ReactNode } from 'react';
-import { Lang, Theme, User, Application, ApplicationStatus, STATUS_TRANSITIONS, Notification } from './types';
+import type { Lang, Theme, User, Application, ApplicationStatus, Notification } from './types';
+import { STATUS_TRANSITIONS } from './types';
 import { MOCK_USERS, MOCK_APPLICATIONS, MOCK_NOTIFICATIONS } from './data';
 
-// State shape
 interface AppState {
   lang: Lang;
   theme: Theme;
@@ -12,16 +12,14 @@ interface AppState {
   isAuthenticated: boolean;
 }
 
-// Actions
 type Action =
   | { type: 'SET_LANG'; payload: Lang }
   | { type: 'SET_THEME'; payload: Theme }
   | { type: 'LOGIN'; payload: User }
   | { type: 'LOGOUT' }
-  | { type: 'UPDATE_APPLICATION_STATUS'; payload: { appId: string; newStatus: ApplicationStatus; note?: string } }
-  | { type: 'ADD_APPLICATION'; payload: Application }
-  | { type: 'MARK_NOTIFICATION_READ'; payload: string }
-  | { type: 'ADD_NOTIFICATION'; payload: Notification };
+  | { type: 'UPDATE_STATUS'; payload: { appId: string; status: ApplicationStatus; note?: string } }
+  | { type: 'ADD_APP'; payload: Application }
+  | { type: 'READ_NOTIF'; payload: string };
 
 const initialState: AppState = {
   lang: (localStorage.getItem('lang') as Lang) || 'ar',
@@ -43,65 +41,48 @@ function reducer(state: AppState, action: Action): AppState {
       localStorage.setItem('theme', action.payload);
       document.documentElement.classList.remove('light', 'dark');
       document.documentElement.classList.add(action.payload);
-      document.documentElement.setAttribute('data-theme', action.payload);
       return { ...state, theme: action.payload };
     case 'LOGIN':
       return { ...state, currentUser: action.payload, isAuthenticated: true };
     case 'LOGOUT':
       return { ...state, currentUser: null, isAuthenticated: false };
-    case 'UPDATE_APPLICATION_STATUS': {
-      const { appId, newStatus, note } = action.payload;
+    case 'UPDATE_STATUS': {
+      const { appId, status, note } = action.payload;
       return {
         ...state,
         applications: state.applications.map(app => {
           if (app.id !== appId) return app;
-          const validTransitions = STATUS_TRANSITIONS[app.status];
-          if (!validTransitions.includes(newStatus)) return app;
+          if (!STATUS_TRANSITIONS[app.status].includes(status)) return app;
           return {
-            ...app,
-            status: newStatus,
-            updatedAt: new Date().toISOString(),
+            ...app, status, updatedAt: new Date().toISOString(),
             statusHistory: [...app.statusHistory, {
-              id: `ev-${Date.now()}`,
-              applicationId: appId,
-              fromStatus: app.status,
-              toStatus: newStatus,
-              actorId: state.currentUser?.id || 'system',
-              actorRole: state.currentUser?.role || 'admin',
-              note,
-              timestamp: new Date().toISOString(),
+              id: `ev-${Date.now()}`, applicationId: appId, fromStatus: app.status, toStatus: status,
+              actorId: state.currentUser?.id || 'system', actorRole: state.currentUser?.role || 'admin',
+              note, timestamp: new Date().toISOString(),
             }],
           };
         }),
       };
     }
-    case 'ADD_APPLICATION':
+    case 'ADD_APP':
       return { ...state, applications: [...state.applications, action.payload] };
-    case 'MARK_NOTIFICATION_READ':
-      return {
-        ...state,
-        notifications: state.notifications.map(n => n.id === action.payload ? { ...n, read: true } : n),
-      };
-    case 'ADD_NOTIFICATION':
-      return { ...state, notifications: [action.payload, ...state.notifications] };
+    case 'READ_NOTIF':
+      return { ...state, notifications: state.notifications.map(n => n.id === action.payload ? { ...n, read: true } : n) };
     default:
       return state;
   }
 }
 
-// Context
 interface AppContextType {
   state: AppState;
   setLang: (lang: Lang) => void;
   setTheme: (theme: Theme) => void;
   login: (email: string, password: string) => boolean;
   logout: () => void;
-  updateApplicationStatus: (appId: string, newStatus: ApplicationStatus, note?: string) => void;
+  updateApplicationStatus: (appId: string, status: ApplicationStatus, note?: string) => void;
   addApplication: (app: Application) => void;
   markNotificationRead: (id: string) => void;
   t: (ar: string, en: string) => string;
-  isRTL: boolean;
-  hasRole: (roles: string[]) => boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -114,40 +95,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((email: string, _password: string): boolean => {
     const user = Object.values(MOCK_USERS).find(u => u.email === email);
-    if (user) {
-      dispatch({ type: 'LOGIN', payload: user });
-      return true;
-    }
+    if (user) { dispatch({ type: 'LOGIN', payload: user }); return true; }
     return false;
   }, []);
 
   const logout = useCallback(() => dispatch({ type: 'LOGOUT' }), []);
-
-  const updateApplicationStatus = useCallback((appId: string, newStatus: ApplicationStatus, note?: string) => {
-    dispatch({ type: 'UPDATE_APPLICATION_STATUS', payload: { appId, newStatus, note } });
+  const updateApplicationStatus = useCallback((appId: string, status: ApplicationStatus, note?: string) => {
+    dispatch({ type: 'UPDATE_STATUS', payload: { appId, status, note } });
   }, []);
-
-  const addApplication = useCallback((app: Application) => {
-    dispatch({ type: 'ADD_APPLICATION', payload: app });
-  }, []);
-
-  const markNotificationRead = useCallback((id: string) => {
-    dispatch({ type: 'MARK_NOTIFICATION_READ', payload: id });
-  }, []);
-
+  const addApplication = useCallback((app: Application) => dispatch({ type: 'ADD_APP', payload: app }), []);
+  const markNotificationRead = useCallback((id: string) => dispatch({ type: 'READ_NOTIF', payload: id }), []);
   const t = useCallback((ar: string, en: string) => state.lang === 'ar' ? ar : en, [state.lang]);
-  const isRTL = state.lang === 'ar';
-  const hasRole = useCallback((roles: string[]) => {
-    if (!state.currentUser) return false;
-    return roles.includes(state.currentUser.role);
-  }, [state.currentUser]);
 
   return (
-    <AppContext.Provider value={{
-      state, setLang, setTheme, login, logout,
-      updateApplicationStatus, addApplication, markNotificationRead,
-      t, isRTL, hasRole,
-    }}>
+    <AppContext.Provider value={{ state, setLang, setTheme, login, logout, updateApplicationStatus, addApplication, markNotificationRead, t }}>
       {children}
     </AppContext.Provider>
   );
