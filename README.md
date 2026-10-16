@@ -211,8 +211,48 @@ SAR, AED, USD, EGP, KWD, QAR, BHD, OMR, JOD, GBP, EUR, PKR, INR, MYR, IDR, TRY
 4. **Dynamic Updates**: All prices throughout the site update instantly
 5. **Top Bar Access**: Users can change preferences anytime without page reload
 
+### Dynamic Currency Localization
+
+The platform dynamically localizes currency display based on the selected site language:
+
+**Arabic Language (ar):**
+- Uses Arabic currency symbols: ر.س (SAR), د.إ (AED), ج.م (EGP), د.ك (KWD), etc.
+- Format: `amount symbol` (e.g., "100 ر.س", "250 د.إ")
+- Numbers formatted with Arabic locale: `ar-SA`
+
+**English Language (en):**
+- Uses international currency codes: SAR, AED, EGP, KWD, USD, etc.
+- Format: `code amount` (e.g., "SAR 100", "AED 250")
+- Numbers formatted with English locale: `en-US`
+
+**Implementation:**
+```typescript
+// In src/preferences.ts
+export function formatCurrency(amount: number, currencyCode: string, lang: 'ar' | 'en'): string {
+  const currency = CURRENCIES.find(c => c.code === currencyCode);
+  if (!currency) return `${amount} ${currencyCode}`;
+  
+  const formattedAmount = amount.toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  
+  // Arabic: use symbols (ر.س, د.إ, ج.م)
+  // English: use codes (SAR, AED, EGP)
+  if (lang === 'ar') {
+    return `${formattedAmount} ${currency.symbol}`;
+  }
+  return `${currency.code} ${formattedAmount}`;
+}
+```
+
+**Instant Updates:**
+- All prices update immediately when switching languages
+- No page reload required
+- Works across all pages: Home, Services, Service Details, Application Wizard, Dashboard, Tracker
+
 ### Technical Implementation
-- `src/preferences.ts`: Country/currency data and conversion utilities
+- `src/preferences.ts`: Country/currency data, conversion utilities, and localization
 - `src/components/WelcomeModal.tsx`: First-visit modal component
 - `src/store.tsx`: State management with preferences persistence
 - `src/components/Layout.tsx`: Top bar selectors with dropdowns

@@ -61,7 +61,7 @@ export function convertCurrency(amountAED: number, targetCurrency: string): numb
   return Math.round(amountAED * currency.rate * 100) / 100;
 }
 
-// Format currency with symbol
+// Format currency with localized symbol/code
 export function formatCurrency(amount: number, currencyCode: string, lang: 'ar' | 'en'): string {
   const currency = CURRENCIES.find(c => c.code === currencyCode);
   if (!currency) return `${amount} ${currencyCode}`;
@@ -71,10 +71,12 @@ export function formatCurrency(amount: number, currencyCode: string, lang: 'ar' 
     maximumFractionDigits: 2,
   });
   
+  // In Arabic: use Arabic symbols (ر.س, د.إ, ج.م)
+  // In English: use currency codes (SAR, AED, EGP)
   if (lang === 'ar') {
     return `${formattedAmount} ${currency.symbol}`;
   }
-  return `${currency.symbol}${formattedAmount}`;
+  return `${currency.code} ${formattedAmount}`;
 }
 
 // Get country by code
