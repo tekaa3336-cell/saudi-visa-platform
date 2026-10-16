@@ -30,8 +30,17 @@ export function LoginPage() {
       return;
     }
     
-    if (login(email, password)) navigate('/dashboard');
-    else setError(t('بيانات غير صحيحة. جرب حساب تجريبي.', 'Invalid. Try demo account.'));
+    if (login(email, password)) {
+      // Check if user is admin and redirect accordingly
+      const adminEmails = ['admin@demo.com', 'tekaa336@gmail.com'];
+      if (adminEmails.includes(email.toLowerCase())) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
+    } else {
+      setError(t('بيانات غير صحيحة. جرب حساب تجريبي.', 'Invalid. Try demo account.'));
+    }
   };
 
   return (
