@@ -26,8 +26,8 @@ export default function ApplicationWizard() {
   const [submitted, setSubmitted] = useState(false);
   const [referenceCode, setReferenceCode] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
 
-  // Scroll to top when step changes
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
   }, [step]);
@@ -52,6 +52,73 @@ export default function ApplicationWizard() {
     const updated = [...applicants];
     updated[idx] = { ...updated[idx], [field]: value };
     setApplicants(updated);
+  };
+
+  const markFieldTouched = (applicantId: string, field: string) => {
+    setTouchedFields({ ...touchedFields, [`${applicantId}_${field}`]: true });
+  };
+
+  const isFieldTouched = (applicantId: string, field: string) => {
+    return touchedFields[`${applicantId}_${field}`] || false;
+  };
+
+  const validateStep1 = (): boolean => {
+    let isValid = true;
+    const errors: string[] = [];
+
+    applicants.forEach((applicant, idx) => {
+      const applicantNum = idx + 1;
+      
+      if (!applicant.fullName.trim()) {
+        errors.push(t(`الاسم مطلوب للمتقدم ${applicantNum}`, `Full name is required for applicant ${applicantNum}`));
+        isValid = false;
+      }
+      
+      if (!applicant.nationality) {
+        errors.push(t(`الجنسية مطلوبة للمتقدم ${applicantNum}`, `Nationality is required for applicant ${applicantNum}`));
+        isValid = false;
+      }
+      
+      if (!applicant.passportNumber.trim()) {
+        errors.push(t(`رقم الجواز مطلوب للمتقدم ${applicantNum}`, `Passport number is required for applicant ${applicantNum}`));
+        isValid = false;
+      }
+      
+      if (!applicant.passportExpiry) {
+        errors.push(t(`تاريخ انتهاء الجواز مطلوب للمتقدم ${applicantNum}`, `Passport expiry is required for applicant ${applicantNum}`));
+        isValid = false;
+      }
+      
+      if (!applicant.dateOfBirth) {
+        errors.push(t(`تاريخ الميلاد مطلوب للمتقدم ${applicantNum}`, `Date of birth is required for applicant ${applicantNum}`));
+        isValid = false;
+      }
+      
+      if (!applicant.countryOfResidence) {
+        errors.push(t(`بلد الإقامة مطلوب للمتقدم ${applicantNum}`, `Country of residence is required for applicant ${applicantNum}`));
+        isValid = false;
+      }
+    });
+
+    if (!isValid) {
+      setValidationError(errors[0]);
+    } else {
+      setValidationError(null);
+    }
+
+    return isValid;
+  };
+
+  const handleNext = (targetStep: number) => {
+    if (step === 1) {
+      const isValid = validateStep1();
+      if (!isValid) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
+    setStep(targetStep);
+    setValidationError(null);
   };
 
   const handleFileUpload = (applicantId: string) => {
@@ -86,6 +153,27 @@ export default function ApplicationWizard() {
   const serviceFeeConverted = convertCurrency(service.pricing.serviceFee * applicants.length, currency);
   const govFeeConverted = convertCurrency(service.pricing.governmentFee * applicants.length, currency);
 
+  const getFieldError = (applicant: Applicant, field: string): string | undefined => {
+    if (!isFieldTouched(applicant.id, field)) return undefined;
+    
+    switch (field) {
+      case 'fullName':
+        return !applicant.fullName.trim() ? t('الاسم مطلوب', 'Full name is required') : undefined;
+      case 'nationality':
+        return !applicant.nationality ? t('الجنسية مطلوبة', 'Nationality is required') : undefined;
+      case 'passportNumber':
+        return !applicant.passportNumber.trim() ? t('رقم الجواز مطلوب', 'Passport number is required') : undefined;
+      case 'passportExpiry':
+        return !applicant.passportExpiry ? t('تاريخ الانتهاء مطلوب', 'Expiry date is required') : undefined;
+      case 'dateOfBirth':
+        return !applicant.dateOfBirth ? t('تاريخ الميلاد مطلوب', 'Date of birth is required') : undefined;
+      case 'countryOfResidence':
+        return !applicant.countryOfResidence ? t('بلد الإقامة مطلوب', 'Country of residence is required') : undefined;
+      default:
+        return undefined;
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 animate-fade-in">
       <Link to={`/services/${service.id}`} className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 mb-3">
@@ -94,7 +182,13 @@ export default function ApplicationWizard() {
       <h1 className="text-lg font-bold text-slate-900 dark:text-white mb-4">{t('طلب', 'Application')}: {service.name[lang]}</h1>
       <Stepper steps={steps} currentStep={step} />
 
-      {/* Step 0: Type */}
+      {validationError && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2">
+          <AlertCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-red-700 dark:text-red-400 font-medium">{validationError}</p>
+        </div>
+      )}
+
       {step === 0 && (
         <Card className="p-5">
           <h3 className="font-bold text-slate-900 dark:text-white text-sm mb-3">{t('نوع التقديم', 'Application Type')}</h3>
@@ -112,11 +206,10 @@ export default function ApplicationWizard() {
               <p className="text-[10px] text-slate-500 mt-0.5">{t('عدة أشخاص', 'Multiple people')}</p>
             </button>
           </div>
-          <div className="mt-4 flex justify-end"><Button onClick={() => setStep(1)}>{t('التالي', 'Next')}{lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}</Button></div>
+          <div className="mt-4 flex justify-end"><Button onClick={() => handleNext(1)}>{t('التالي', 'Next')}{lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}</Button></div>
         </Card>
       )}
 
-      {/* Step 1: Details */}
       {step === 1 && (
         <div className="space-y-4">
           {applicants.map((applicant, idx) => (
@@ -126,32 +219,90 @@ export default function ApplicationWizard() {
                 {applicants.length > 1 && <button onClick={() => removeApplicant(idx)} className="text-xs text-red-500">{t('حذف', 'Remove')}</button>}
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
-                <Input label={t('الاسم', 'Name')} value={applicant.fullName} onChange={e => updateApplicant(idx, 'fullName', e.target.value)} />
-                <Select label={t('الجنسية', 'Nationality')} value={applicant.nationality} onChange={e => updateApplicant(idx, 'nationality', e.target.value)} options={[
-                  { value: '', label: t('اختر', 'Select') }, { value: 'Egyptian', label: 'Egyptian' }, { value: 'Pakistani', label: 'Pakistani' },
-                  { value: 'Indian', label: 'Indian' }, { value: 'Jordanian', label: 'Jordanian' }, { value: 'Other', label: 'Other' },
-                ]} />
-                <Input label={t('الجواز', 'Passport')} value={applicant.passportNumber} onChange={e => updateApplicant(idx, 'passportNumber', e.target.value)} />
-                <Input label={t('انتهاء الجواز', 'Expiry')} type="date" value={applicant.passportExpiry} onChange={e => updateApplicant(idx, 'passportExpiry', e.target.value)} />
-                <Input label={t('الميلاد', 'DOB')} type="date" value={applicant.dateOfBirth} onChange={e => updateApplicant(idx, 'dateOfBirth', e.target.value)} />
-                <Select label={t('الإقامة', 'Residence')} value={applicant.countryOfResidence} onChange={e => updateApplicant(idx, 'countryOfResidence', e.target.value)} options={[
-                  { value: '', label: t('اختر', 'Select') }, { value: 'UAE', label: 'UAE' }, { value: 'Saudi Arabia', label: 'Saudi Arabia' },
-                  { value: 'Kuwait', label: 'Kuwait' }, { value: 'Qatar', label: 'Qatar' }, { value: 'Other', label: 'Other' },
-                ]} />
-                <Input label={t('الهاتف', 'Phone')} value={applicant.phone} onChange={e => updateApplicant(idx, 'phone', e.target.value)} />
-                <Input label={t('البريد', 'Email')} type="email" value={applicant.email} onChange={e => updateApplicant(idx, 'email', e.target.value)} />
+                <Input 
+                  label={t('الاسم', 'Name')} 
+                  value={applicant.fullName} 
+                  onChange={e => updateApplicant(idx, 'fullName', e.target.value)}
+                  onBlur={() => markFieldTouched(applicant.id, 'fullName')}
+                  error={getFieldError(applicant, 'fullName')}
+                  required
+                />
+                <Select 
+                  label={t('الجنسية', 'Nationality')} 
+                  value={applicant.nationality} 
+                  onChange={e => {
+                    updateApplicant(idx, 'nationality', e.target.value);
+                    markFieldTouched(applicant.id, 'nationality');
+                  }}
+                  error={getFieldError(applicant, 'nationality')}
+                  options={[
+                    { value: '', label: t('اختر', 'Select') }, { value: 'Egyptian', label: 'Egyptian' }, { value: 'Pakistani', label: 'Pakistani' },
+                    { value: 'Indian', label: 'Indian' }, { value: 'Jordanian', label: 'Jordanian' }, { value: 'Other', label: 'Other' },
+                  ]} 
+                  required
+                />
+                <Input 
+                  label={t('الجواز', 'Passport')} 
+                  value={applicant.passportNumber} 
+                  onChange={e => updateApplicant(idx, 'passportNumber', e.target.value)}
+                  onBlur={() => markFieldTouched(applicant.id, 'passportNumber')}
+                  error={getFieldError(applicant, 'passportNumber')}
+                  required
+                />
+                <Input 
+                  label={t('انتهاء الجواز', 'Expiry')} 
+                  type="date" 
+                  value={applicant.passportExpiry} 
+                  onChange={e => updateApplicant(idx, 'passportExpiry', e.target.value)}
+                  onBlur={() => markFieldTouched(applicant.id, 'passportExpiry')}
+                  error={getFieldError(applicant, 'passportExpiry')}
+                  required
+                />
+                <Input 
+                  label={t('الميلاد', 'DOB')} 
+                  type="date" 
+                  value={applicant.dateOfBirth} 
+                  onChange={e => updateApplicant(idx, 'dateOfBirth', e.target.value)}
+                  onBlur={() => markFieldTouched(applicant.id, 'dateOfBirth')}
+                  error={getFieldError(applicant, 'dateOfBirth')}
+                  required
+                />
+                <Select 
+                  label={t('الإقامة', 'Residence')} 
+                  value={applicant.countryOfResidence} 
+                  onChange={e => {
+                    updateApplicant(idx, 'countryOfResidence', e.target.value);
+                    markFieldTouched(applicant.id, 'countryOfResidence');
+                  }}
+                  error={getFieldError(applicant, 'countryOfResidence')}
+                  options={[
+                    { value: '', label: t('اختر', 'Select') }, { value: 'UAE', label: 'UAE' }, { value: 'Saudi Arabia', label: 'Saudi Arabia' },
+                    { value: 'Kuwait', label: 'Kuwait' }, { value: 'Qatar', label: 'Qatar' }, { value: 'Other', label: 'Other' },
+                  ]}
+                  required
+                />
+                <Input 
+                  label={t('الهاتف', 'Phone')} 
+                  value={applicant.phone} 
+                  onChange={e => updateApplicant(idx, 'phone', e.target.value)}
+                />
+                <Input 
+                  label={t('البريد', 'Email')} 
+                  type="email" 
+                  value={applicant.email} 
+                  onChange={e => updateApplicant(idx, 'email', e.target.value)}
+                />
               </div>
             </Card>
           ))}
           {applyForGroup && <Button variant="outline" onClick={addApplicant} className="w-full"><Users size={14} />{t('إضافة', 'Add')}</Button>}
           <div className="flex justify-between">
             <Button variant="ghost" onClick={() => setStep(0)}>{t('السابق', 'Back')}</Button>
-            <Button onClick={() => setStep(2)}>{t('التالي', 'Next')}{lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}</Button>
+            <Button onClick={() => handleNext(2)}>{t('التالي', 'Next')}{lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}</Button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Documents */}
       {step === 2 && (
         <div className="space-y-4">
           <Card className="p-4">
@@ -183,12 +334,11 @@ export default function ApplicationWizard() {
           ))}
           <div className="flex justify-between">
             <Button variant="ghost" onClick={() => setStep(1)}>{t('السابق', 'Back')}</Button>
-            <Button onClick={() => setStep(3)}>{t('التالي', 'Next')}{lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}</Button>
+            <Button onClick={() => handleNext(3)}>{t('التالي', 'Next')}{lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}</Button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Review */}
       {step === 3 && (
         <div className="space-y-4">
           <Card className="p-5">
@@ -225,7 +375,6 @@ export default function ApplicationWizard() {
         </div>
       )}
 
-      {/* Step 4: Confirmation */}
       {step === 4 && submitted && (
         <Card className="p-6 text-center">
           <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-3"><CheckCircle2 size={28} className="text-emerald-600" /></div>
