@@ -62,6 +62,42 @@ export default function ApplicationWizard() {
     return touchedFields[`${applicantId}_${field}`] || false;
   };
 
+  const markAllFieldsTouched = () => {
+    const allTouched: Record<string, boolean> = {};
+    applicants.forEach(applicant => {
+      ['fullName', 'nationality', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'countryOfResidence'].forEach(field => {
+        allTouched[`${applicant.id}_${field}`] = true;
+      });
+    });
+    setTouchedFields(allTouched);
+  };
+
+  const validatePassport = (passport: string): boolean => {
+    if (!passport.trim()) return false;
+    const passportRegex = /^[A-Z0-9]{6,9}$/i;
+    return passportRegex.test(passport);
+  };
+
+  const validateFullName = (name: string): boolean => {
+    if (!name.trim()) return false;
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    if (!nameRegex.test(name)) return false;
+    const words = name.trim().split(/\s+/);
+    return words.length >= 2;
+  };
+
+  const validatePhone = (phone: string): boolean => {
+    if (!phone.trim()) return true;
+    const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\./0-9]*$/;
+    return phoneRegex.test(phone);
+  };
+
+  const validateEmail = (email: string): boolean => {
+    if (!email.trim()) return true;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const validateStep1 = (): boolean => {
     let isValid = true;
     const errors: string[] = [];
@@ -72,6 +108,9 @@ export default function ApplicationWizard() {
       if (!applicant.fullName.trim()) {
         errors.push(t(`الاسم مطلوب للمتقدم ${applicantNum}`, `Full name is required for applicant ${applicantNum}`));
         isValid = false;
+      } else if (!validateFullName(applicant.fullName)) {
+        errors.push(t(`اسم غير صحيح للمتقدم ${applicantNum}`, `Invalid name for applicant ${applicantNum}`));
+        isValid = false;
       }
       
       if (!applicant.nationality) {
@@ -81,6 +120,9 @@ export default function ApplicationWizard() {
       
       if (!applicant.passportNumber.trim()) {
         errors.push(t(`رقم الجواز مطلوب للمتقدم ${applicantNum}`, `Passport number is required for applicant ${applicantNum}`));
+        isValid = false;
+      } else if (!validatePassport(applicant.passportNumber)) {
+        errors.push(t(`رقم جواز غير صحيح للمتقدم ${applicantNum}`, `Invalid passport number for applicant ${applicantNum}`));
         isValid = false;
       }
       
@@ -98,10 +140,21 @@ export default function ApplicationWizard() {
         errors.push(t(`بلد الإقامة مطلوب للمتقدم ${applicantNum}`, `Country of residence is required for applicant ${applicantNum}`));
         isValid = false;
       }
+
+      if (applicant.phone && !validatePhone(applicant.phone)) {
+        errors.push(t(`رقم هاتف غير صحيح للمتقدم ${applicantNum}`, `Invalid phone for applicant ${applicantNum}`));
+        isValid = false;
+      }
+
+      if (applicant.email && !validateEmail(applicant.email)) {
+        errors.push(t(`بريد إلكتروني غير صحيح للمتقدم ${applicantNum}`, `Invalid email for applicant ${applicantNum}`));
+        isValid = false;
+      }
     });
 
     if (!isValid) {
       setValidationError(errors[0]);
+      markAllFieldsTouched();
     } else {
       setValidationError(null);
     }
