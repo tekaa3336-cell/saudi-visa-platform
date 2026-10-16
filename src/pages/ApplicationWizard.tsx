@@ -6,6 +6,7 @@ import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button, Input, Select, Stepper } from '../components/Layout';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { RESIDENCE_COUNTRIES } from '../data/countries';
+import { NATIONALITIES } from '../data/nationalities';
 import { Upload, CheckCircle2, FileText, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Applicant, Application } from '../types';
@@ -282,19 +283,20 @@ export default function ApplicationWizard() {
                   error={getFieldError(applicant, 'fullName')}
                   required
                 />
-                <Select 
-                  label={t('الجنسية', 'Nationality')} 
-                  value={applicant.nationality} 
-                  onChange={e => {
-                    updateApplicant(idx, 'nationality', e.target.value);
+                <SearchableSelect
+                  label={t('الجنسية', 'Nationality')}
+                  value={applicant.nationality}
+                  onChange={(value) => {
+                    updateApplicant(idx, 'nationality', value);
                     markFieldTouched(applicant.id, 'nationality');
                   }}
                   error={getFieldError(applicant, 'nationality')}
-                  options={[
-                    { value: '', label: t('اختر', 'Select') }, { value: 'Egyptian', label: 'Egyptian' }, { value: 'Pakistani', label: 'Pakistani' },
-                    { value: 'Indian', label: 'Indian' }, { value: 'Jordanian', label: 'Jordanian' }, { value: 'Other', label: 'Other' },
-                  ]} 
+                  placeholder={t('اختر الجنسية', 'Select nationality')}
                   required
+                  options={NATIONALITIES.map(nat => ({
+                    value: nat.code,
+                    label: nat.name[lang]
+                  }))}
                 />
                 <Input 
                   label={t('الجواز', 'Passport')} 
