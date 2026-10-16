@@ -257,10 +257,40 @@ export default function HomePage() {
       <section className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white py-10">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="text-xl font-bold mb-3">{t('جاهز لبدء طلبك؟', 'Ready to Start?')}</h2>
-          <p className="text-emerald-100 text-sm mb-5">{t('سجّل الآن واحصل على مساعدة متخصصة', 'Register now for specialized assistance')}</p>
+          <p className="text-emerald-100 text-sm mb-5">
+            {state.isAuthenticated 
+              ? t('استعرض خدماتنا أو اذهب إلى لوحة التحكم', 'Browse our services or go to your dashboard')
+              : t('سجّل الآن واحصل على مساعدة متخصصة', 'Register now for specialized assistance')
+            }
+          </p>
           <div className="flex flex-wrap justify-center gap-3">
-            <Link to="/register"><Button size="lg" className="bg-white text-emerald-700 hover:bg-emerald-50">{t('إنشاء حساب', 'Register')}</Button></Link>
-            <Link to="/contact"><Button variant="ghost" size="lg" className="text-white hover:bg-white/10">{t('تواصل معنا', 'Contact')}</Button></Link>
+            {state.isAuthenticated ? (
+              <>
+                <Link to="/services">
+                  <Button size="lg" className="bg-white text-slate-900 hover:bg-slate-100 font-bold shadow-lg">
+                    {t('استعرض الخدمات', 'Browse Services')}
+                  </Button>
+                </Link>
+                <Link to="/dashboard">
+                  <Button variant="ghost" size="lg" className="text-white border-2 border-white hover:bg-white/10 font-semibold">
+                    {t('لوحة التحكم', 'My Dashboard')}
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/register">
+                  <Button size="lg" className="bg-white text-slate-900 hover:bg-slate-100 font-bold shadow-lg">
+                    {t('سجّل الآن', 'Register Now')}
+                  </Button>
+                </Link>
+                <Link to="/contact">
+                  <Button variant="ghost" size="lg" className="text-white border-2 border-white hover:bg-white/10 font-semibold">
+                    {t('تواصل معنا', 'Contact Us')}
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>

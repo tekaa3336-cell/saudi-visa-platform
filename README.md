@@ -112,6 +112,64 @@ npm run build
 
 The built files will be in the `dist/` directory.
 
+## 🎯 Call-to-Action (CTA) Button
+
+The "Ready to Start?" banner CTA button has been improved for better visibility and user experience:
+
+### Dynamic Button Behavior
+- **Logged Out Users**:
+  - Primary button: "Register Now" / "سجّل الآن" (white background with dark text)
+  - Routes to `/register`
+  - High contrast for maximum visibility
+
+- **Logged In Users**:
+  - Primary button: "Browse Services" / "استعرض الخدمات" (white background with dark text)
+  - Secondary button: "My Dashboard" / "لوحة التحكم" (outlined white button)
+  - Routes to `/services` and `/dashboard` respectively
+
+### Visual Improvements
+- **Enhanced Contrast**: White buttons now use dark text (`text-slate-900`) for better readability
+- **Bold Typography**: `font-bold` for primary buttons to make them stand out
+- **Shadow Effect**: `shadow-lg` adds depth and draws attention
+- **Clear Hierarchy**: Primary button (solid white) vs Secondary button (outlined white)
+- **Hover States**: Smooth transitions with appropriate color changes
+
+### Implementation
+```tsx
+{state.isAuthenticated ? (
+  <>
+    <Link to="/services">
+      <Button className="bg-white text-slate-900 font-bold shadow-lg">
+        {t('استعرض الخدمات', 'Browse Services')}
+      </Button>
+    </Link>
+    <Link to="/dashboard">
+      <Button variant="ghost" className="text-white border-2 border-white">
+        {t('لوحة التحكم', 'My Dashboard')}
+      </Button>
+    </Link>
+  </>
+) : (
+  <>
+    <Link to="/register">
+      <Button className="bg-white text-slate-900 font-bold shadow-lg">
+        {t('سجّل الآن', 'Register Now')}
+      </Button>
+    </Link>
+    <Link to="/contact">
+      <Button variant="ghost" className="text-white border-2 border-white">
+        {t('تواصل معنا', 'Contact Us')}
+      </Button>
+    </Link>
+  </>
+)}
+```
+
+### Localization Support
+- Button text automatically switches between Arabic and English
+- Uses the `t()` translation function for dynamic language support
+- Maintains proper RTL/LTR layout direction
+
 ## 🔐 Authentication Buttons
 
 The authentication buttons (Login/Register) have been optimized for both desktop and mobile views:
