@@ -25,6 +25,7 @@ export default function ApplicationWizard() {
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, { name: string }[]>>({});
   const [submitted, setSubmitted] = useState(false);
   const [referenceCode, setReferenceCode] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Scroll to top when step changes
   useEffect(() => {
