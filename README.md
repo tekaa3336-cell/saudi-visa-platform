@@ -137,14 +137,22 @@ The application implements automatic scroll-to-top functionality for better user
 
 ## 🌍 Customer Preferences
 
-The platform includes a comprehensive customer preferences system:
+The platform includes a comprehensive customer preferences system with a clean, unified UI:
 
 ### Features
-- **First-Time Welcome Modal**: Elegant popup on first visit to select country, currency, and language
+- **First-Time Welcome Modal**: Elegant popup on first visit with unified dropdown selectors for country, currency, and language
 - **Persistent Top Bar Selectors**: Always-accessible dropdowns in the header for quick changes
 - **Dynamic Currency Conversion**: All prices automatically convert based on selected currency
 - **RTL/LTR Support**: Automatic layout direction switching based on language selection
 - **Profile Sync**: Preferences saved to user profile on login/registration
+
+### Welcome Modal UI
+- **Unified Design**: All three selectors (country, currency, language) use consistent styling
+- **Country Dropdown**: Clean `<select>` element with flag emojis and country names
+- **Currency Dropdown**: Styled `<select>` with currency symbols and names
+- **Language Toggle**: Clean toggle buttons for Arabic/English with flag icons
+- **Dark Mode Support**: Proper contrast and readability in both light and dark themes
+- **Responsive**: Works seamlessly on all screen sizes
 
 ### Supported Countries (15)
 Saudi Arabia, UAE, Egypt, Kuwait, Qatar, Bahrain, Oman, Jordan, Pakistan, India, UK, USA, Malaysia, Indonesia, Turkey
