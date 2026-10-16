@@ -5,6 +5,7 @@ import { SERVICES } from '../data';
 import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button, Input, Select, Stepper } from '../components/Layout';
 import { SearchableSelect } from '../components/SearchableSelect';
+import { DocumentUpload } from '../components/DocumentUpload';
 import { RESIDENCE_COUNTRIES } from '../data/countries';
 import { NATIONALITIES } from '../data/nationalities';
 import { Upload, CheckCircle2, FileText, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
@@ -25,7 +26,7 @@ export default function ApplicationWizard() {
     id: uuidv4(), fullName: '', nationality: '', passportNumber: '', passportExpiry: '',
     dateOfBirth: '', countryOfResidence: '', phone: '', email: '',
   }]);
-  const [uploadedDocs, setUploadedDocs] = useState<Record<string, { name: string }[]>>({});
+  const [uploadedDocs, setUploadedDocs] = useState<Record<string, Record<string, { name: string; url: string; size: number }>>>({});
   const [submitted, setSubmitted] = useState(false);
   const [referenceCode, setReferenceCode] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -177,9 +178,51 @@ export default function ApplicationWizard() {
     setValidationError(null);
   };
 
-  const handleFileUpload = (applicantId: string) => {
-    const existing = uploadedDocs[applicantId] || [];
-    setUploadedDocs({ ...uploadedDocs, [applicantId]: [...existing, { name: `doc_${existing.length + 1}.pdf` }] });
+  const handleDocumentUpload = (applicantId: string, documentType: string, fileData: { name: string; url: string; size: number }) => {
+    setUploadedDocs(prev => ({
+      ...prev,
+      [applicantId]: {
+        ...prev[applicantId],
+        [documentType]: fileData
+      }
+    }));
+  };
+
+  const handleDocumentRemove = (applicantId: string, documentType: string) => {
+    setUploadedDocs(prev => {
+      const applicantDocs = { ...prev[applicantId] };
+      delete applicantDocs[documentType];
+      return {
+        ...prev,
+        [applicantId]: applicantDocs
+      };
+    });
+  };
+
+  const validateDocuments = (): boolean => {
+    let isValid = true;
+    const errors: string[] = [];
+
+    applicants.forEach((applicant, idx) => {
+      const applicantNum = idx + 1;
+      const applicantDocs = uploadedDocs[applicant.id] || {};
+      
+      service.requiredDocuments.forEach((doc, docIdx) => {
+        const docType = `doc_${docIdx}`;
+        if (!applicantDocs[docType]) {
+          errors.push(t(`المستند "${doc[lang]}" مطلوب للمتقدم ${applicantNum}`, `Document "${doc[lang]}" is required for applicant ${applicantNum}`));
+          isValid = false;
+        }
+      });
+    });
+
+    if (!isValid) {
+      setValidationError(errors[0]);
+    } else {
+      setValidationError(null);
+    }
+
+    return isValid;
   };
 
   const handleSubmit = () => {
@@ -189,10 +232,18 @@ export default function ApplicationWizard() {
       id: uuidv4(), referenceCode: code, serviceType: service.id,
       userId: state.currentUser?.id || 'guest', applicants,
       status: 'submitted', paymentStatus: 'not_due',
-      documents: applicants.flatMap(a => (uploadedDocs[a.id] || []).map((doc, idx) => ({
-        id: uuidv4(), applicantId: a.id, type: `doc_${idx}`, fileName: doc.name,
-        storageKey: `docs/${code}/${doc.name}`, status: 'pending' as const, uploadedAt: new Date().toISOString(),
-      }))),
+      documents: applicants.flatMap(a => {
+        const applicantDocs = uploadedDocs[a.id] || {};
+        return Object.entries(applicantDocs).map(([docType, docData]) => ({
+          id: uuidv4(),
+          applicantId: a.id,
+          type: docType,
+          fileName: docData.name,
+          storageKey: `docs/${code}/${docData.name}`,
+          status: 'pending' as const,
+          uploadedAt: new Date().toISOString(),
+        }));
+      }),
       statusHistory: [{ id: uuidv4(), applicationId: '', fromStatus: null, toStatus: 'submitted',
         actorId: state.currentUser?.id || 'guest', actorRole: state.currentUser?.role || 'visitor', timestamp: new Date().toISOString() }],
       totalCost: service.pricing.serviceFee + service.pricing.governmentFee,
