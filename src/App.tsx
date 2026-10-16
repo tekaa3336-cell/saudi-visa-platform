@@ -3,13 +3,15 @@ import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom
 import { AppProvider } from './store';
 import { Layout } from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import HomePage from './pages/Home';
 import { ServicesCatalog, ServiceDetail } from './pages/Services';
 import ApplicationWizard from './pages/ApplicationWizard';
 import TrackerPage from './pages/Tracker';
 import { LoginPage, RegisterPage } from './pages/Auth';
-import { CustomerDashboard, AgencyDashboard, AdminDashboard } from './pages/Dashboard';
+import { CustomerDashboard, AgencyDashboard } from './pages/Dashboard';
 import { FAQPage, ContactPage, PrivacyPage, TermsPage, AgencyInfoPage, ComingSoonPage } from './pages/StaticPages';
+import AdminDashboard from './pages/AdminDashboard';
 
 function ServiceDetailWrapper() {
   const { serviceId } = useParams<{ serviceId: string }>();
@@ -37,7 +39,11 @@ export default function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/dashboard" element={<CustomerDashboard />} />
             <Route path="/agency" element={<AgencyDashboard />} />
-            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin" element={
+              <ProtectedRoute allowedEmails={['admin@demo.com', 'tekaa336@gmail.com']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
             <Route path="/hotels" element={<ComingSoonPage type="hotels" />} />
             <Route path="/flights" element={<ComingSoonPage type="flights" />} />
             <Route path="*" element={<Navigate to="/" replace />} />
