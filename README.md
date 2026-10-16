@@ -112,6 +112,50 @@ npm run build
 
 The built files will be in the `dist/` directory.
 
+## 🔐 Authentication Buttons
+
+The authentication buttons (Login/Register) have been optimized for both desktop and mobile views:
+
+### Desktop Header
+- **Always Visible**: Login and Register buttons are permanently visible in the top navigation bar on desktop screens (md+ breakpoint)
+- **Visual Hierarchy**: 
+  - Login: Outlined button style with border (`border-slate-300 dark:border-slate-600`)
+  - Register: Primary button style with solid emerald background (`bg-emerald-600`)
+- **Clear Labels**: Full text labels ("تسجيل الدخول" / "Login" and "إنشاء حساب" / "Register")
+- **Smooth Transitions**: Hover effects with smooth color transitions
+- **RTL/LTR Support**: Buttons adapt seamlessly when switching between Arabic and English
+
+### Mobile Navigation Drawer
+- **Equal Width Buttons**: Both buttons use `grid grid-cols-2 gap-3` for perfect 50/50 width distribution
+- **No Text Clipping**: 
+  - `whitespace-nowrap` prevents text wrapping
+  - Adequate padding (`px-4 py-2.5`) ensures full text visibility
+  - Proper font sizing (`text-sm font-semibold`)
+- **High Contrast**: 
+  - Login: Bold border with clear text
+  - Register: Solid emerald background with white text
+- **Touch-Friendly**: Larger touch targets for mobile users
+- **Full Text Display**: 
+  - Arabic: "تسجيل الدخول" and "حساب جديد"
+  - English: "Login" and "Register"
+
+### Technical Implementation
+```tsx
+// Desktop buttons
+<Link className="px-4 py-2 text-sm font-semibold border border-slate-300 whitespace-nowrap">
+<Link className="px-4 py-2 text-sm font-semibold bg-emerald-600 text-white whitespace-nowrap">
+
+// Mobile buttons
+<div className="grid grid-cols-2 gap-3">
+  <Link className="flex items-center justify-center px-4 py-2.5 whitespace-nowrap">
+```
+
+### Accessibility
+- Proper focus states for keyboard navigation
+- High contrast ratios for readability
+- Clear visual distinction between primary (Register) and secondary (Login) actions
+- Responsive design that works across all screen sizes
+
 ## 📜 Scroll Behavior
 
 The application implements automatic scroll-to-top functionality for better user experience:

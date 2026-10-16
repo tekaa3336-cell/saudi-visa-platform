@@ -192,19 +192,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </div>
 
+          {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center gap-2">
             {state.isAuthenticated ? (
               <>
                 <Link to={state.currentUser?.role === 'admin' ? '/admin' : state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                   <User size={14} />{state.currentUser?.name}
                 </Link>
-                <button onClick={handleLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-red-500"><LogOut size={14} /></button>
+                <button onClick={handleLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title={t('تسجيل الخروج', 'Logout')}>
+                  <LogOut size={14} />
+                </button>
               </>
             ) : (
               <>
-                <Link to="/login" className="px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">{t('دخول', 'Login')}</Link>
-                <Link to="/register" className="px-3 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">{t('تسجيل', 'Register')}</Link>
+                <Link to="/login" className="px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors whitespace-nowrap">
+                  {t('تسجيل الدخول', 'Login')}
+                </Link>
+                <Link to="/register" className="px-4 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors whitespace-nowrap shadow-sm">
+                  {t('إنشاء حساب', 'Register')}
+                </Link>
               </>
             )}
           </div>
@@ -236,9 +243,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </button>
                 </>
               ) : (
-                <div className="flex gap-2 mt-2">
-                  <Link to="/login" onClick={() => setMobileOpen(false)} className="flex-1 text-center px-3 py-2 text-sm font-medium border border-slate-300 dark:border-slate-700 rounded-lg">{t('دخول', 'Login')}</Link>
-                  <Link to="/register" onClick={() => setMobileOpen(false)} className="flex-1 text-center px-3 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg">{t('تسجيل', 'Register')}</Link>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <Link to="/login" onClick={() => setMobileOpen(false)} className="flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 border-2 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors whitespace-nowrap">
+                    {t('تسجيل الدخول', 'Login')}
+                  </Link>
+                  <Link to="/register" onClick={() => setMobileOpen(false)} className="flex items-center justify-center px-4 py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors whitespace-nowrap shadow-sm">
+                    {t('حساب جديد', 'Register')}
+                  </Link>
                 </div>
               )}
             </div>
