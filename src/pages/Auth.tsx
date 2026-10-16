@@ -31,13 +31,7 @@ export function LoginPage() {
     }
     
     if (login(email, password)) {
-      // Check if user is admin and redirect accordingly
-      const adminEmails = ['admin@demo.com', 'tekaa336@gmail.com'];
-      if (adminEmails.includes(email.toLowerCase())) {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/dashboard');
     } else {
       setError(t('بيانات غير صحيحة. جرب حساب تجريبي.', 'Invalid. Try demo account.'));
     }
