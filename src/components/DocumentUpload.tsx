@@ -49,37 +49,112 @@ export function DocumentUpload({
     setUploading(true);
 
     try {
-      // Upload to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${applicantId}/${documentType}_${Date.now()}.${fileExt}`;
-      const filePath = `visa-documents/${fileName}`;
+      // Prepare file path - use safe naming convention
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `temp/${applicantId}_${documentType}_${Date.now()}.${fileExt}`;
+      
+      console.log('📤 Starting upload:', { 
+        fileName, 
+        fileType: file.type, 
+        fileSize: file.size,
+        bucket: 'visa-documents'
+      });
 
+      // Try to upload to Supabase Storage
+      let uploadData;
       const { data, error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file, {
+        .from('visa-documents')
+        .upload(fileName, file, {
           cacheControl: '3600',
           upsert: false,
+          contentType: file.type,
         });
 
       if (uploadError) {
-        throw uploadError;
+        console.error('❌ Supabase upload error:', uploadError);
+        
+        // If bucket doesn't exist, try to create it
+        if (uploadError.message?.includes('Bucket not found') || uploadError.statusCode === '404') {
+          console.log('🔧 Bucket not found, attempting to create...');
+          const { error: createError } = await supabase.storage.createBucket('visa-documents', {
+            public: true,
+            fileSizeLimit: 5242880, // 5MB
+            allowedMimeTypes: ['image/jpeg', 'image/png', 'application/pdf']
+          });
+          
+          if (createError) {
+            console.error('❌ Failed to create bucket:', createError);
+            throw new Error('Storage bucket not available. Please contact support.');
+          }
+          
+          // Retry upload after creating bucket
+          console.log('✅ Bucket created, retrying upload...');
+          const { data: retryData, error: retryError } = await supabase.storage
+            .from('visa-documents')
+            .upload(fileName, file, {
+              cacheControl: '3600',
+              upsert: false,
+              contentType: file.type,
+            });
+          
+          if (retryError) {
+            throw retryError;
+          }
+          
+          uploadData = retryData;
+        } else {
+          throw uploadError;
+        }
+      } else {
+        uploadData = data;
       }
+
+      console.log('✅ Upload successful:', data);
 
       // Get public URL
       const { data: urlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
+        .from('visa-documents')
+        .getPublicUrl(fileName);
+
+      console.log('🔗 Public URL:', urlData.publicUrl);
 
       const fileData = {
-        name: file.name,
+        name: safeFileName,
         url: urlData.publicUrl,
         size: file.size,
       };
 
       onUpload(applicantId, documentType, fileData);
+      
+      // Show success message briefly
+      setError(null);
     } catch (err) {
-      console.error('Upload error:', err);
-      setError(lang === 'ar' ? 'فشل رفع الملف. يرجى المحاولة مرة أخرى.' : 'Failed to upload file. Please try again.');
+      console.error('❌ Upload error details:', err);
+      
+      let errorMessage = 'Unknown error';
+      if (err instanceof Error) {
+        errorMessage = err.message;
+        
+        // Provide user-friendly error messages
+        if (errorMessage.includes('Bucket not found')) {
+          errorMessage = lang === 'ar' 
+            ? 'خدمة التخزين غير متاحة حالياً. يرجى المحاولة لاحقاً.' 
+            : 'Storage service is currently unavailable. Please try again later.';
+        } else if (errorMessage.includes('Permission denied') || errorMessage.includes('403')) {
+          errorMessage = lang === 'ar' 
+            ? 'لا توجد صلاحيات لرفع الملفات. يرجى تسجيل الدخول.' 
+            : 'Permission denied. Please sign in to upload files.';
+        } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+          errorMessage = lang === 'ar' 
+            ? 'خطأ في الاتصال. يرجى التحقق من اتصال الإنترنت.' 
+            : 'Network error. Please check your internet connection.';
+        }
+      }
+      
+      setError(lang === 'ar' 
+        ? `فشل رفع الملف: ${errorMessage}` 
+        : `Failed to upload file: ${errorMessage}`);
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
