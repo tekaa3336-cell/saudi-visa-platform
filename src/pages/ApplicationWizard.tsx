@@ -414,36 +414,44 @@ export default function ApplicationWizard() {
 
       {step === 2 && (
         <div className="space-y-4">
-          <Card className="p-4">
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-2">{t('المستندات المطلوبة', 'Required Documents')}</h3>
-            <div className="space-y-1">
-              {service.requiredDocuments.map((doc, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400"><FileText size={12} className="text-emerald-600" />{doc[lang]}</div>
-              ))}
-            </div>
-          </Card>
-          {applicants.map((applicant, idx) => (
+          {applicants.map((applicant, applicantIdx) => (
             <Card key={applicant.id} className="p-4">
-              <h4 className="font-semibold text-xs text-slate-900 dark:text-white mb-2">{applicant.fullName || `${t('متقدم', 'Applicant')} ${idx + 1}`}</h4>
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-5 text-center cursor-pointer hover:border-emerald-400" onClick={() => handleFileUpload(applicant.id)}>
-                <Upload size={24} className="mx-auto text-slate-400 mb-1" />
-                <p className="text-xs text-slate-500">{t('اسحب أو انقر للرفع', 'Drop or click to upload')}</p>
+              <h4 className="font-bold text-sm text-slate-900 dark:text-white mb-4">
+                {applicant.fullName || `${t('متقدم', 'Applicant')} ${applicantIdx + 1}`}
+              </h4>
+              <div className="space-y-4">
+                {service.requiredDocuments.map((doc, docIdx) => {
+                  const docType = `doc_${docIdx}`;
+                  const uploadedFile = uploadedDocs[applicant.id]?.[docType];
+                  
+                  return (
+                    <DocumentUpload
+                      key={docType}
+                      label={doc[lang]}
+                      applicantId={applicant.id}
+                      documentType={docType}
+                      onUpload={handleDocumentUpload}
+                      onRemove={handleDocumentRemove}
+                      uploadedFile={uploadedFile}
+                      required={true}
+                      lang={lang}
+                    />
+                  );
+                })}
               </div>
-              {uploadedDocs[applicant.id]?.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {uploadedDocs[applicant.id].map((doc, dIdx) => (
-                    <div key={dIdx} className="flex items-center justify-between p-1.5 bg-slate-50 dark:bg-slate-800 rounded text-xs">
-                      <span className="flex items-center gap-1"><FileText size={10} className="text-emerald-600" />{doc.name}</span>
-                      <span className="text-emerald-600 text-[10px]">✓</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </Card>
           ))}
           <div className="flex justify-between">
             <Button variant="ghost" onClick={() => setStep(1)}>{t('السابق', 'Back')}</Button>
-            <Button onClick={() => handleNext(3)}>{t('التالي', 'Next')}{lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}</Button>
+            <Button 
+              onClick={() => {
+                if (validateDocuments()) {
+                  handleNext(3);
+                }
+              }}
+            >
+              {t('التالي', 'Next')}{lang === 'ar' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
+            </Button>
           </div>
         </div>
       )}
@@ -460,7 +468,7 @@ export default function ApplicationWizard() {
               {applicants.map((a, idx) => (
                 <div key={a.id} className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 text-xs">
                   <div><p className="font-medium text-slate-900 dark:text-white">{a.fullName || `${t('متقدم', 'Applicant')} ${idx + 1}`}</p><p className="text-[10px] text-slate-500">{a.nationality}</p></div>
-                  <span className="text-slate-500">{uploadedDocs[a.id]?.length || 0} {t('مستندات', 'docs')}</span>
+                  <span className="text-slate-500">{Object.keys(uploadedDocs[a.id] || {}).length} {t('مستندات', 'docs')}</span>
                 </div>
               ))}
             </div>
