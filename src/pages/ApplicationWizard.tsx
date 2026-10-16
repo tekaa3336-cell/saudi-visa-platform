@@ -4,6 +4,8 @@ import { useApp } from '../store';
 import { SERVICES } from '../data';
 import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button, Input, Select, Stepper } from '../components/Layout';
+import { SearchableSelect } from '../components/SearchableSelect';
+import { RESIDENCE_COUNTRIES } from '../data/countries';
 import { Upload, CheckCircle2, FileText, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Applicant, Application } from '../types';
@@ -320,19 +322,20 @@ export default function ApplicationWizard() {
                   error={getFieldError(applicant, 'dateOfBirth')}
                   required
                 />
-                <Select 
-                  label={t('الإقامة', 'Residence')} 
-                  value={applicant.countryOfResidence} 
-                  onChange={e => {
-                    updateApplicant(idx, 'countryOfResidence', e.target.value);
+                <SearchableSelect
+                  label={t('بلد الإقامة', 'Country of Residence')}
+                  value={applicant.countryOfResidence}
+                  onChange={(value) => {
+                    updateApplicant(idx, 'countryOfResidence', value);
                     markFieldTouched(applicant.id, 'countryOfResidence');
                   }}
                   error={getFieldError(applicant, 'countryOfResidence')}
-                  options={[
-                    { value: '', label: t('اختر', 'Select') }, { value: 'UAE', label: 'UAE' }, { value: 'Saudi Arabia', label: 'Saudi Arabia' },
-                    { value: 'Kuwait', label: 'Kuwait' }, { value: 'Qatar', label: 'Qatar' }, { value: 'Other', label: 'Other' },
-                  ]}
+                  placeholder={t('اختر بلد الإقامة', 'Select country of residence')}
                   required
+                  options={RESIDENCE_COUNTRIES.map(country => ({
+                    value: country.code,
+                    label: country.name[lang]
+                  }))}
                 />
                 <Input 
                   label={t('الهاتف', 'Phone')} 
