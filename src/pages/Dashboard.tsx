@@ -70,7 +70,7 @@ export function CustomerDashboard() {
             {myApps.map(app => {
               const service = SERVICES.find(s => s.id === app.serviceType);
               return (
-                <div key={app.id} onClick={() => setSelectedApp(app.id)} className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                <div key={app.id} onClick={() => setSelectedApp(app.id)} className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
                   <div className="flex items-center gap-2">
                     <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${service?.color || 'from-slate-400 to-slate-600'} flex items-center justify-center`}><FileText size={14} className="text-white" /></div>
                     <div>
