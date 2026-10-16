@@ -347,13 +347,14 @@ export function Input({ label, error, className = '', ...props }: React.InputHTM
   );
 }
 
-export function Select({ label, options, className = '', ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string; options: { value: string; label: string }[] }) {
+export function Select({ label, options, error, className = '', ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string; options: { value: string; label: string }[]; error?: string }) {
   return (
     <div className="space-y-1">
       {label && <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>}
-      <select className={`w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 ${className}`} {...props}>
+      <select className={`w-full px-3 py-2 rounded-lg border ${error ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 dark:border-slate-700'} bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 ${className}`} {...props}>
         {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
       </select>
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
 }
