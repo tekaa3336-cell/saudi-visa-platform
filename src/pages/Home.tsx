@@ -267,27 +267,27 @@ export default function HomePage() {
             {state.isAuthenticated ? (
               <>
                 <Link to="/services">
-                  <Button size="lg" className="bg-white text-slate-900 hover:bg-slate-100 font-bold shadow-lg">
+                  <button className="px-6 py-3 bg-white text-slate-900 hover:bg-slate-100 rounded-lg font-bold text-sm shadow-lg transition-colors">
                     {t('استعرض الخدمات', 'Browse Services')}
-                  </Button>
+                  </button>
                 </Link>
                 <Link to="/dashboard">
-                  <Button variant="ghost" size="lg" className="text-white border-2 border-white hover:bg-white/10 font-semibold">
+                  <button className="px-6 py-3 bg-transparent text-white border-2 border-white hover:bg-white/10 rounded-lg font-semibold text-sm transition-colors">
                     {t('لوحة التحكم', 'My Dashboard')}
-                  </Button>
+                  </button>
                 </Link>
               </>
             ) : (
               <>
                 <Link to="/register">
-                  <Button size="lg" className="bg-white text-slate-900 hover:bg-slate-100 font-bold shadow-lg">
+                  <button className="px-6 py-3 bg-white text-slate-900 hover:bg-slate-100 rounded-lg font-bold text-sm shadow-lg transition-colors">
                     {t('سجّل الآن', 'Register Now')}
-                  </Button>
+                  </button>
                 </Link>
                 <Link to="/contact">
-                  <Button variant="ghost" size="lg" className="text-white border-2 border-white hover:bg-white/10 font-semibold">
+                  <button className="px-6 py-3 bg-transparent text-white border-2 border-white hover:bg-white/10 rounded-lg font-semibold text-sm transition-colors">
                     {t('تواصل معنا', 'Contact Us')}
-                  </Button>
+                  </button>
                 </Link>
               </>
             )}
