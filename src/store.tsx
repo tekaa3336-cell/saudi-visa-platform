@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useReducer, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
 import type { Lang, Theme, User, Application, ApplicationStatus, Notification, UserPreferences } from './types';
 import { STATUS_TRANSITIONS } from './types';
-import { MOCK_USERS, MOCK_APPLICATIONS, MOCK_NOTIFICATIONS } from './data';
+import { MOCK_APPLICATIONS, MOCK_NOTIFICATIONS } from './data';
+import { supabase } from './lib/supabaseClient';
+import { signInWithEmail, signOutLocal, toAppUser, type SignInResult } from './lib/auth';
 
 interface AppState {
   lang: Lang;
@@ -136,7 +138,7 @@ interface AppContextType {
   state: AppState;
   setLang: (lang: Lang) => void;
   setTheme: (theme: Theme) => void;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<SignInResult>;
   logout: () => void;
   updateApplicationStatus: (appId: string, status: ApplicationStatus, note?: string) => void;
   addApplication: (app: Application) => void;
@@ -154,16 +156,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setLang = useCallback((lang: Lang) => dispatch({ type: 'SET_LANG', payload: lang }), []);
   const setTheme = useCallback((theme: Theme) => dispatch({ type: 'SET_THEME', payload: theme }), []);
 
-  const login = useCallback((email: string, _password: string): boolean => {
-    const user = Object.values(MOCK_USERS).find(u => u.email === email);
-    if (user) { 
-      dispatch({ type: 'LOGIN', payload: user }); 
-      return true; 
-    }
-    return false;
+  // Keep the UI in sync with the Supabase session: restores the login after a page reload and signs the
+  // user in after they click the email confirmation link (Supabase puts the session in the URL).
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        dispatch({ type: 'LOGOUT' });
+        return;
+      }
+      if (session?.user?.email_confirmed_at && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+        dispatch({ type: 'LOGIN', payload: toAppUser(session.user) });
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  const logout = useCallback(() => dispatch({ type: 'LOGOUT' }), []);
+  const login = useCallback(async (email: string, password: string): Promise<SignInResult> => {
+    const result = await signInWithEmail(email, password);
+    if (result.ok) dispatch({ type: 'LOGIN', payload: result.user });
+    return result;
+  }, []);
+
+  const logout = useCallback(() => {
+    dispatch({ type: 'LOGOUT' });
+    void signOutLocal();
+  }, []);
   const updateApplicationStatus = useCallback((appId: string, status: ApplicationStatus, note?: string) => {
     dispatch({ type: 'UPDATE_STATUS', payload: { appId, status, note } });
   }, []);
