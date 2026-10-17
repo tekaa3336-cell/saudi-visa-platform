@@ -178,27 +178,107 @@ export const validateFullName = (name: string): { valid: boolean; message?: stri
   return { valid: true };
 };
 
-export const validatePhone = (phone: string): { valid: boolean; message?: string } => {
-  if (!phone.trim()) return { valid: true }; // Optional field
+// ---------------------------------------------------------------------------
+// Phone (required) — dial code is chosen from a dropdown, the national number is typed
+// ---------------------------------------------------------------------------
 
-  // Remove spaces and dashes
-  const cleaned = phone.replace(/[\s-]/g, '');
+/** Digits only, with trunk-prefix zeros removed (e.g. "050 123 4567" -> "501234567") */
+export const normalizeNationalNumber = (raw: string): string =>
+  raw.replace(/\D/g, '').replace(/^0+/, '');
 
-  // Must start with + or contain only digits
-  if (!/^[\+]?[0-9]{8,15}$/.test(cleaned)) {
-    return { valid: false, message: 'رقم الهاتف غير صحيح' };
+/** Full international number for storage (e.g. "+971501234567"), or '' when nothing was typed */
+export const buildInternationalPhone = (dialCode: string, rawNational: string): string => {
+  const national = normalizeNationalNumber(rawNational);
+  return national ? `${dialCode}${national}` : '';
+};
+
+export const validatePhone = (dialCode: string, rawNational: string): ValidationResult => {
+  if (!dialCode) {
+    return { valid: false, message: 'اختر كود الدولة', messageEn: 'Select a country dial code' };
+  }
+
+  const raw = rawNational.trim();
+  if (!raw) {
+    return { valid: false, message: 'رقم الهاتف مطلوب', messageEn: 'Phone number is required' };
+  }
+
+  // The dial code comes from the dropdown, so it must not be typed in the number field
+  if (raw.includes('+') || (raw.startsWith('00') && normalizeNationalNumber(raw).length > 0)) {
+    return {
+      valid: false,
+      message: 'لا تكتب كود الدولة داخل الحقل، اختره من القائمة',
+      messageEn: 'Do not type the country code here, choose it from the list',
+    };
+  }
+
+  // Only digits and common separators are allowed
+  if (!/^[0-9\s\-()]+$/.test(raw)) {
+    return {
+      valid: false,
+      message: 'رقم الهاتف غير صحيح، يجب أن يحتوي على أرقام فقط',
+      messageEn: 'Invalid phone number. Use digits only',
+    };
+  }
+
+  const national = normalizeNationalNumber(raw);
+  const totalDigits = dialCode.replace(/\D/g, '').length + national.length;
+
+  // Nothing but zeros (e.g. "0000000")
+  if (national.length === 0) {
+    return { valid: false, message: 'رقم الهاتف غير صحيح', messageEn: 'Invalid phone number' };
+  }
+
+  if (national.length < 6) {
+    return {
+      valid: false,
+      message: 'رقم الهاتف قصير جداً، تأكد من إدخال الرقم كاملاً',
+      messageEn: 'Phone number is too short. Please enter the full number',
+    };
+  }
+
+  // E.164 allows at most 15 digits including the country code
+  if (totalDigits > 15) {
+    return {
+      valid: false,
+      message: 'رقم الهاتف طويل جداً، تأكد من صحة الرقم',
+      messageEn: 'Phone number is too long. Please check the number',
+    };
+  }
+
+  // Prevent obviously fake numbers such as 1111111 or 0000000
+  if (/^(\d)\1+$/.test(national)) {
+    return { valid: false, message: 'رقم الهاتف غير صحيح', messageEn: 'Invalid phone number' };
   }
 
   return { valid: true };
 };
 
-export const validateEmail = (email: string): { valid: boolean; message?: string } => {
-  if (!email.trim()) return { valid: true }; // Optional field
+// ---------------------------------------------------------------------------
+// Email (required)
+// ---------------------------------------------------------------------------
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return { valid: false, message: 'البريد الإلكتروني غير صحيح' };
+export const validateEmail = (email: string): ValidationResult => {
+  const value = email.trim();
+
+  if (!value) {
+    return { valid: false, message: 'البريد الإلكتروني مطلوب', messageEn: 'Email is required' };
   }
+
+  const invalid: ValidationResult = {
+    valid: false,
+    message: 'البريد الإلكتروني غير صحيح، مثال: name@example.com',
+    messageEn: 'Invalid email address, e.g. name@example.com',
+  };
+
+  if (value.length > 254) return invalid;
+
+  // local@domain.tld — no spaces, a single @, a dot in the domain, a TLD of 2+ letters
+  if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(value)) return invalid;
+
+  // No leading/trailing/consecutive dots in the local part or the domain
+  const [local, domain] = value.split('@');
+  if (local.startsWith('.') || local.endsWith('.') || value.includes('..')) return invalid;
+  if (domain.startsWith('.') || domain.startsWith('-') || domain.endsWith('-')) return invalid;
 
   return { valid: true };
 };
