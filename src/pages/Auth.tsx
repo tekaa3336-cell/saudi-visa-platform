@@ -8,20 +8,20 @@ export function LoginPage() {
   const { login, t } = useApp();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
+  const [secretCode, setSecretCode] = useState('');
+  const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState('');
-  const [touched, setTouched] = useState({ email: false, password: false });
+  const [touched, setTouched] = useState({ email: false, secretCode: false });
 
   const validateForm = () => {
     if (!email.trim()) return t('البريد الإلكتروني مطلوب', 'Email is required');
-    if (!password.trim()) return t('كلمة المرور مطلوبة', 'Password is required');
+    if (!secretCode.trim()) return t('رمز الدخول مطلوب', 'Access code is required');
     return null;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ email: true, password: true });
+    setTouched({ email: true, secretCode: true });
     setError('');
     
     const validationError = validateForm();
@@ -30,7 +30,7 @@ export function LoginPage() {
       return;
     }
     
-    if (login(email, password)) {
+    if (login(email, secretCode)) {
       navigate('/dashboard');
     } else {
       setError(t('بيانات غير صحيحة. جرب حساب تجريبي.', 'Invalid. Try demo account.'));
@@ -57,16 +57,16 @@ export function LoginPage() {
           />
           <div className="relative">
             <Input 
-              label={t('كلمة المرور', 'Password')} 
-              type={showPw ? 'text' : 'password'} 
-              value={password} 
-              onChange={e => setPassword(e.target.value)} 
-              onBlur={() => setTouched({...touched, password: true})}
+              label={t('رمز الدخول', 'Access Code')} 
+              type={showCode ? 'text' : 'text'} 
+              value={secretCode} 
+              onChange={e => setSecretCode(e.target.value)} 
+              onBlur={() => setTouched({...touched, secretCode: true})}
               placeholder="••••••" 
-              error={touched.password && !password.trim() ? t('كلمة المرور مطلوبة', 'Password is required') : undefined}
+              error={touched.secretCode && !secretCode.trim() ? t('رمز الدخول مطلوب', 'Access code is required') : undefined}
               required 
             />
-            <button type="button" onClick={() => setShowPw(!showPw)} className="absolute top-8 end-3 text-slate-400">{showPw ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+            <button type="button" onClick={() => setShowCode(!showCode)} className="absolute top-8 end-3 text-slate-400">{showCode ? <EyeOff size={14} /> : <Eye size={14} />}</button>
           </div>
           {error && <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-600"><AlertCircle size={12} />{error}</div>}
           <Button type="submit" className="w-full">{t('دخول', 'Sign In')}</Button>
@@ -80,7 +80,7 @@ export function LoginPage() {
               { email: 'agency@demo.com', label: t('وكالة', 'Agency') },
               { email: 'admin@demo.com', label: t('مدير', 'Admin') },
             ].map(d => (
-              <button key={d.email} onClick={() => { setEmail(d.email); setPassword('demo123'); }}
+              <button key={d.email} onClick={() => { setEmail(d.email); setSecretCode('demo123'); }}
                 className="w-full flex justify-between p-1.5 rounded text-[10px] bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
                 <span className="font-medium">{d.label}</span><span className="text-slate-500" dir="ltr">{d.email}</span>
               </button>
@@ -95,10 +95,10 @@ export function LoginPage() {
 export function RegisterPage() {
   const { login, state, t } = useApp();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ name: '', email: '', secretCode: '', confirm: '' });
   const [error, setError] = useState('');
   const [type, setType] = useState<'customer' | 'agency'>('customer');
-  const [touched, setTouched] = useState({ name: false, email: false, password: false, confirm: false });
+  const [touched, setTouched] = useState({ name: false, email: false, secretCode: false, confirm: false });
 
   const getError = (field: keyof typeof form) => {
     if (!touched[field]) return undefined;
@@ -109,30 +109,28 @@ export function RegisterPage() {
         if (!form.email.trim()) return t('البريد الإلكتروني مطلوب', 'Email is required');
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return t('البريد الإلكتروني غير صحيح', 'Invalid email');
         return undefined;
-      case 'password':
-        if (!form.password) return t('كلمة المرور مطلوبة', 'Password is required');
-        if (form.password.length < 6) return t('6 أحرف على الأقل', 'Min 6 characters');
+      case 'secretCode':
+        if (!form.secretCode) return t('رمز الدخول مطلوب', 'Access code is required');
+        if (form.secretCode.length < 6) return t('6 أحرف على الأقل', 'Min 6 characters');
         return undefined;
       case 'confirm':
-        if (!form.confirm) return t('تأكيد كلمة المرور مطلوب', 'Password confirmation is required');
-        if (form.password !== form.confirm) return t('كلمات المرور غير متطابقة', 'Passwords mismatch');
+        if (!form.confirm) return t('تأكيد رمز الدخول مطلوب', 'Access code confirmation is required');
+        if (form.secretCode !== form.confirm) return t('رموز الدخول غير متطابقة', 'Access codes mismatch');
         return undefined;
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ name: true, email: true, password: true, confirm: true });
+    setTouched({ name: true, email: true, secretCode: true, confirm: true });
     setError('');
     
-    // Validate all fields
     if (!form.name.trim()) { setError(t('الاسم مطلوب', 'Name is required')); return; }
     if (!form.email.trim()) { setError(t('البريد الإلكتروني مطلوب', 'Email is required')); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setError(t('البريد الإلكتروني غير صحيح', 'Invalid email')); return; }
-    if (form.password.length < 6) { setError(t('6 أحرف على الأقل', 'Min 6 characters')); return; }
-    if (form.password !== form.confirm) { setError(t('كلمات المرور غير متطابقة', 'Passwords mismatch')); return; }
+    if (form.secretCode.length < 6) { setError(t('6 أحرف على الأقل', 'Min 6 characters')); return; }
+    if (form.secretCode !== form.confirm) { setError(t('رموز الدخول غير متطابقة', 'Access codes mismatch')); return; }
     
-    // Login and save current preferences to user profile
     login('customer@demo.com', '');
     navigate('/dashboard');
   };
@@ -164,17 +162,17 @@ export function RegisterPage() {
             required 
           />
           <Input 
-            label={t('كلمة المرور', 'Password')} 
-            type="password" 
-            value={form.password} 
-            onChange={e => setForm({...form, password: e.target.value})}
-            onBlur={() => setTouched({...touched, password: true})}
-            error={getError('password')}
+            label={t('رمز الدخول', 'Access Code')} 
+            type="text" 
+            value={form.secretCode} 
+            onChange={e => setForm({...form, secretCode: e.target.value})}
+            onBlur={() => setTouched({...touched, secretCode: true})}
+            error={getError('secretCode')}
             required 
           />
           <Input 
             label={t('تأكيد', 'Confirm')} 
-            type="password" 
+            type="text" 
             value={form.confirm} 
             onChange={e => setForm({...form, confirm: e.target.value})}
             onBlur={() => setTouched({...touched, confirm: true})}
