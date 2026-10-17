@@ -11,6 +11,13 @@ import { NATIONALITIES } from '../data/nationalities';
 import { Upload, CheckCircle2, FileText, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Applicant, Application } from '../types';
+import {
+  validateDateOfBirth,
+  validatePassportExpiry,
+  minBirthDateISO,
+  maxBirthDateISO,
+  tomorrowISO,
+} from '../utils/validation';
 
 export default function ApplicationWizard() {
   const { serviceId } = useParams<{ serviceId: string }>();
@@ -130,13 +137,15 @@ export default function ApplicationWizard() {
         isValid = false;
       }
       
-      if (!applicant.passportExpiry) {
-        errors.push(t(`تاريخ انتهاء الجواز مطلوب للمتقدم ${applicantNum}`, `Passport expiry is required for applicant ${applicantNum}`));
+      const expiryCheck = validatePassportExpiry(applicant.passportExpiry);
+      if (!expiryCheck.valid) {
+        errors.push(t(`${expiryCheck.message} (المتقدم ${applicantNum})`, `${expiryCheck.messageEn} (applicant ${applicantNum})`));
         isValid = false;
       }
-      
-      if (!applicant.dateOfBirth) {
-        errors.push(t(`تاريخ الميلاد مطلوب للمتقدم ${applicantNum}`, `Date of birth is required for applicant ${applicantNum}`));
+
+      const dobCheck = validateDateOfBirth(applicant.dateOfBirth);
+      if (!dobCheck.valid) {
+        errors.push(t(`${dobCheck.message} (المتقدم ${applicantNum})`, `${dobCheck.messageEn} (applicant ${applicantNum})`));
         isValid = false;
       }
       
@@ -270,10 +279,14 @@ export default function ApplicationWizard() {
         return !applicant.nationality ? t('الجنسية مطلوبة', 'Nationality is required') : undefined;
       case 'passportNumber':
         return !applicant.passportNumber.trim() ? t('رقم الجواز مطلوب', 'Passport number is required') : undefined;
-      case 'passportExpiry':
-        return !applicant.passportExpiry ? t('تاريخ الانتهاء مطلوب', 'Expiry date is required') : undefined;
-      case 'dateOfBirth':
-        return !applicant.dateOfBirth ? t('تاريخ الميلاد مطلوب', 'Date of birth is required') : undefined;
+      case 'passportExpiry': {
+        const result = validatePassportExpiry(applicant.passportExpiry);
+        return result.valid ? undefined : t(result.message!, result.messageEn!);
+      }
+      case 'dateOfBirth': {
+        const result = validateDateOfBirth(applicant.dateOfBirth);
+        return result.valid ? undefined : t(result.message!, result.messageEn!);
+      }
       case 'countryOfResidence':
         return !applicant.countryOfResidence ? t('بلد الإقامة مطلوب', 'Country of residence is required') : undefined;
       default:
@@ -359,8 +372,10 @@ export default function ApplicationWizard() {
                 />
                 <Input 
                   label={t('انتهاء الجواز', 'Expiry')} 
-                  type="date" 
-                  value={applicant.passportExpiry} 
+                  type="date"
+                  min={tomorrowISO()}
+                  max="9999-12-31"
+                  value={applicant.passportExpiry}
                   onChange={e => updateApplicant(idx, 'passportExpiry', e.target.value)}
                   onBlur={() => markFieldTouched(applicant.id, 'passportExpiry')}
                   error={getFieldError(applicant, 'passportExpiry')}
@@ -368,8 +383,10 @@ export default function ApplicationWizard() {
                 />
                 <Input 
                   label={t('الميلاد', 'DOB')} 
-                  type="date" 
-                  value={applicant.dateOfBirth} 
+                  type="date"
+                  min={minBirthDateISO()}
+                  max={maxBirthDateISO()}
+                  value={applicant.dateOfBirth}
                   onChange={e => updateApplicant(idx, 'dateOfBirth', e.target.value)}
                   onBlur={() => markFieldTouched(applicant.id, 'dateOfBirth')}
                   error={getFieldError(applicant, 'dateOfBirth')}
