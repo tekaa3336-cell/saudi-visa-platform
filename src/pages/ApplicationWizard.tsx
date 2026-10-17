@@ -8,12 +8,16 @@ import { SearchableSelect } from '../components/SearchableSelect';
 import { DocumentUpload } from '../components/DocumentUpload';
 import { RESIDENCE_COUNTRIES } from '../data/countries';
 import { NATIONALITIES } from '../data/nationalities';
+import { DIAL_CODES, DEFAULT_DIAL_CODE } from '../data/dialCodes';
 import { Upload, CheckCircle2, FileText, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Applicant, Application } from '../types';
 import {
   validateDateOfBirth,
   validatePassportExpiry,
+  validatePhone,
+  validateEmail,
+  buildInternationalPhone,
   minBirthDateISO,
   maxBirthDateISO,
   tomorrowISO,
@@ -38,6 +42,9 @@ export default function ApplicationWizard() {
   const [referenceCode, setReferenceCode] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  // Raw phone inputs per applicant: the dial code comes from the dropdown, the national number is typed.
+  // The combined international number (e.g. +971501234567) is what gets stored in applicant.phone.
+  const [phoneInputs, setPhoneInputs] = useState<Record<string, { dial: string; national: string }>>({});
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
@@ -65,6 +72,16 @@ export default function ApplicationWizard() {
     setApplicants(updated);
   };
 
+  const getPhoneInput = (applicantId: string) =>
+    phoneInputs[applicantId] ?? { dial: DEFAULT_DIAL_CODE, national: '' };
+
+  const updatePhone = (idx: number, changes: Partial<{ dial: string; national: string }>) => {
+    const id = applicants[idx].id;
+    const next = { ...getPhoneInput(id), ...changes };
+    setPhoneInputs(prev => ({ ...prev, [id]: next }));
+    updateApplicant(idx, 'phone', buildInternationalPhone(next.dial, next.national));
+  };
+
   const markFieldTouched = (applicantId: string, field: string) => {
     setTouchedFields({ ...touchedFields, [`${applicantId}_${field}`]: true });
   };
@@ -76,7 +93,7 @@ export default function ApplicationWizard() {
   const markAllFieldsTouched = () => {
     const allTouched: Record<string, boolean> = {};
     applicants.forEach(applicant => {
-      ['fullName', 'nationality', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'countryOfResidence'].forEach(field => {
+      ['fullName', 'nationality', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'countryOfResidence', 'phone', 'email'].forEach(field => {
         allTouched[`${applicant.id}_${field}`] = true;
       });
     });
@@ -95,18 +112,6 @@ export default function ApplicationWizard() {
     if (!nameRegex.test(name)) return false;
     const words = name.trim().split(/\s+/);
     return words.length >= 2;
-  };
-
-  const validatePhone = (phone: string): boolean => {
-    if (!phone.trim()) return true;
-    const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\./0-9]*$/;
-    return phoneRegex.test(phone);
-  };
-
-  const validateEmail = (email: string): boolean => {
-    if (!email.trim()) return true;
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
   };
 
   const validateStep1 = (): boolean => {
@@ -154,13 +159,16 @@ export default function ApplicationWizard() {
         isValid = false;
       }
 
-      if (applicant.phone && !validatePhone(applicant.phone)) {
-        errors.push(t(`رقم هاتف غير صحيح للمتقدم ${applicantNum}`, `Invalid phone for applicant ${applicantNum}`));
+      const phoneInput = getPhoneInput(applicant.id);
+      const phoneCheck = validatePhone(phoneInput.dial, phoneInput.national);
+      if (!phoneCheck.valid) {
+        errors.push(t(`${phoneCheck.message} (المتقدم ${applicantNum})`, `${phoneCheck.messageEn} (applicant ${applicantNum})`));
         isValid = false;
       }
 
-      if (applicant.email && !validateEmail(applicant.email)) {
-        errors.push(t(`بريد إلكتروني غير صحيح للمتقدم ${applicantNum}`, `Invalid email for applicant ${applicantNum}`));
+      const emailCheck = validateEmail(applicant.email);
+      if (!emailCheck.valid) {
+        errors.push(t(`${emailCheck.message} (المتقدم ${applicantNum})`, `${emailCheck.messageEn} (applicant ${applicantNum})`));
         isValid = false;
       }
     });
@@ -287,6 +295,15 @@ export default function ApplicationWizard() {
         const result = validateDateOfBirth(applicant.dateOfBirth);
         return result.valid ? undefined : t(result.message!, result.messageEn!);
       }
+      case 'phone': {
+        const { dial, national } = getPhoneInput(applicant.id);
+        const result = validatePhone(dial, national);
+        return result.valid ? undefined : t(result.message!, result.messageEn!);
+      }
+      case 'email': {
+        const result = validateEmail(applicant.email);
+        return result.valid ? undefined : t(result.message!, result.messageEn!);
+      }
       case 'countryOfResidence':
         return !applicant.countryOfResidence ? t('بلد الإقامة مطلوب', 'Country of residence is required') : undefined;
       default:
@@ -407,16 +424,44 @@ export default function ApplicationWizard() {
                     label: country.name[lang]
                   }))}
                 />
-                <Input 
-                  label={t('الهاتف', 'Phone')} 
-                  value={applicant.phone} 
-                  onChange={e => updateApplicant(idx, 'phone', e.target.value)}
-                />
-                <Input 
-                  label={t('البريد', 'Email')} 
-                  type="email" 
-                  value={applicant.email} 
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('الهاتف', 'Phone')}</label>
+                  <div className="flex gap-2" dir="ltr">
+                    <select
+                      aria-label={t('كود الدولة', 'Country dial code')}
+                      value={getPhoneInput(applicant.id).dial}
+                      onChange={e => updatePhone(idx, { dial: e.target.value })}
+                      onBlur={() => markFieldTouched(applicant.id, 'phone')}
+                      className={`w-32 shrink-0 px-2 py-2 rounded-lg border ${getFieldError(applicant, 'phone') ? 'border-red-500' : 'border-slate-300 dark:border-slate-700'} bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500`}
+                    >
+                      {DIAL_CODES.map(c => (
+                        <option key={c.dial} value={c.dial}>{c.dial} {c.name[lang]}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel-national"
+                      placeholder="501234567"
+                      value={getPhoneInput(applicant.id).national}
+                      onChange={e => updatePhone(idx, { national: e.target.value })}
+                      onBlur={() => markFieldTouched(applicant.id, 'phone')}
+                      required
+                      className={`w-full min-w-0 px-3 py-2 rounded-lg border ${getFieldError(applicant, 'phone') ? 'border-red-500' : 'border-slate-300 dark:border-slate-700'} bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500`}
+                    />
+                  </div>
+                  {getFieldError(applicant, 'phone') && <p className="text-xs text-red-500">{getFieldError(applicant, 'phone')}</p>}
+                </div>
+                <Input
+                  label={t('البريد', 'Email')}
+                  type="email"
+                  autoComplete="email"
+                  dir="ltr"
+                  value={applicant.email}
                   onChange={e => updateApplicant(idx, 'email', e.target.value)}
+                  onBlur={() => markFieldTouched(applicant.id, 'email')}
+                  error={getFieldError(applicant, 'email')}
+                  required
                 />
               </div>
             </Card>
