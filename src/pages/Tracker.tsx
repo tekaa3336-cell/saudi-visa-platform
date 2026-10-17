@@ -17,7 +17,8 @@ export default function TrackerPage() {
   const found = !!foundApp;
 
   const statusSteps = ['submitted', 'document_review', 'processing', 'verified', 'completed'];
-  const getStepIndex = (status: string) => statusSteps.indexOf(status);
+  // "needs_revision" is not a progress step: show it at the review step
+  const getStepIndex = (status: string) => statusSteps.indexOf(status === 'needs_revision' ? 'document_review' : status);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 animate-fade-in">

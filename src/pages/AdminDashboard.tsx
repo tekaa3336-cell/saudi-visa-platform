@@ -1,425 +1,446 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { SERVICES, getStatusLabel } from '../data';
-import { Card, Button, Badge, StatusBadge, Modal, Input } from '../components/Layout';
-import { supabase } from '../lib/supabaseClient';
+import { Card, Button, Badge, StatusBadge, Modal } from '../components/Layout';
 import {
-  BarChart3, FileText, Users, DollarSign, Eye, Download,
-  CheckCircle2, Clock, XCircle, AlertCircle, RefreshCw,
-  TrendingUp, Package, Settings
+  ShieldCheck, ClipboardList, Inbox, CheckCircle2, Users, Search, Settings,
+  MessageSquare, AlertCircle, FileText, Phone, Mail,
 } from 'lucide-react';
 import type { Application, ApplicationStatus } from '../types';
+import {
+  FILTER_LABELS, FILTER_ORDER, computeStats, countByFilter, deriveCustomers,
+  filterApplications, filterCustomers, getNextStatuses, validateStatusChange,
+  type AdminFilter,
+} from '../lib/adminData';
+
+type Tab = 'requests' | 'customers';
+
+const formatDate = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-GB');
+};
+
+const formatDateTime = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+};
 
 export default function AdminDashboard() {
   const { state, t, updateApplicationStatus } = useApp();
-  const navigate = useNavigate();
   const lang = state.lang;
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [showDocViewer, setShowDocViewer] = useState(false);
-  const [selectedDocUrl, setSelectedDocUrl] = useState<string>('');
-  const [selectedDocName, setSelectedDocName] = useState<string>('');
+  const applications = state.applications;
 
-  useEffect(() => {
-    loadApplications();
-  }, []);
+  const [tab, setTab] = useState<Tab>('requests');
+  const [filter, setFilter] = useState<AdminFilter>('all');
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [newStatus, setNewStatus] = useState<ApplicationStatus | ''>('');
+  const [note, setNote] = useState('');
+  const [formError, setFormError] = useState('');
+  const [flash, setFlash] = useState('');
 
-  const loadApplications = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('applications')
-        .select('*')
-        .order('created_at', { ascending: false });
+  const stats = useMemo(() => computeStats(applications), [applications]);
+  const counts = useMemo(() => countByFilter(applications), [applications]);
+  const visibleApps = useMemo(() => filterApplications(applications, filter, query), [applications, filter, query]);
+  const customers = useMemo(() => filterCustomers(deriveCustomers(applications), query), [applications, query]);
 
-      if (error) throw error;
-      if (data) {
-        setApplications(data as Application[]);
-      }
-    } catch (err) {
-      console.error('Error loading applications:', err);
-      // Fallback to local state
-      setApplications(state.applications);
-    } finally {
-      setLoading(false);
+  // Always read the live application from the store so the modal shows the new status right after saving
+  const selectedApp: Application | null = selectedId
+    ? applications.find(a => a.id === selectedId) ?? null
+    : null;
+  const nextStatuses = selectedApp ? getNextStatuses(selectedApp.status) : [];
+  const noteRequired = newStatus === 'rejected' || newStatus === 'needs_revision';
+
+  const openApp = (id: string) => {
+    setSelectedId(id);
+    setNewStatus('');
+    setNote('');
+    setFormError('');
+    setFlash('');
+  };
+
+  const closeApp = () => setSelectedId(null);
+
+  const handleSave = () => {
+    if (!selectedApp) return;
+    setFlash('');
+
+    const check = validateStatusChange(newStatus, note);
+    if (!check.valid) {
+      setFormError(t(check.message ?? '', check.messageEn ?? ''));
+      return;
     }
-  };
-
-  const handleStatusChange = async (appId: string, newStatus: ApplicationStatus) => {
-    try {
-      const { error } = await supabase
-        .from('applications')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', appId);
-
-      if (error) throw error;
-
-      updateApplicationStatus(appId, newStatus, t('تم التحديث بواسطة المدير', 'Updated by admin'));
-      await loadApplications();
-    } catch (err) {
-      console.error('Error updating status:', err);
-      // Fallback to local update
-      updateApplicationStatus(appId, newStatus, t('تم التحديث', 'Updated'));
+    if (!newStatus || !nextStatuses.includes(newStatus)) {
+      setFormError(t('هذا الانتقال غير مسموح من الحالة الحالية', 'This change is not allowed from the current status'));
+      return;
     }
+
+    updateApplicationStatus(selectedApp.id, newStatus, note.trim() || undefined);
+    setFormError('');
+    setNewStatus('');
+    setNote('');
+    setFlash(
+      t(
+        'تم تحديث الحالة، والملاحظة ستظهر للعميل في صفحة تتبع الطلب',
+        'Status updated. The note will be visible to the customer on the tracking page',
+      ),
+    );
   };
 
-  const handleViewDocument = (url: string, name: string) => {
-    setSelectedDocUrl(url);
-    setSelectedDocName(name);
-    setShowDocViewer(true);
-  };
-
-  const filteredApps = statusFilter === 'all'
-    ? applications
-    : applications.filter(a => a.status === statusFilter);
-
-  const stats = {
-    total: applications.length,
-    pending: applications.filter(a => ['submitted', 'document_review'].includes(a.status)).length,
-    processing: applications.filter(a => a.status === 'processing').length,
-    verified: applications.filter(a => ['verified', 'approved_for_payment'].includes(a.status)).length,
-    completed: applications.filter(a => a.status === 'completed').length,
-    rejected: applications.filter(a => a.status === 'rejected').length,
-    revenue: applications
-      .filter(a => a.status === 'completed')
-      .reduce((sum, a) => sum + a.totalCost, 0),
-  };
+  const serviceName = (app: Application) =>
+    SERVICES.find(s => s.id === app.serviceType)?.name[lang] ?? app.serviceType;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {t('لوحة الإدارة', 'Admin Dashboard')}
-          </h1>
-          <p className="text-sm text-slate-500">
-            {t('إدارة الطلبات والخدمات', 'Manage applications and services')}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shrink-0">
+          <ShieldCheck size={20} className="text-white" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{t('لوحة تحكم مدير النظام', 'Admin Dashboard')}</h1>
+          <p className="text-xs sm:text-sm text-slate-500 truncate">
+            {t('إدارة الطلبات والعملاء', 'Manage applications and customers')}
+            {state.currentUser?.email ? <span dir="ltr"> · {state.currentUser.email}</span> : null}
           </p>
         </div>
-        <Button onClick={loadApplications} variant="outline" size="sm">
-          <RefreshCw size={14} />
-          {t('تحديث', 'Refresh')}
-        </Button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <StatCard
-          icon={Package}
-          label={t('الإجمالي', 'Total')}
-          value={stats.total}
-          color="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-        />
-        <StatCard
-          icon={Clock}
-          label={t('قيد المراجعة', 'Pending')}
-          value={stats.pending}
-          color="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-        />
-        <StatCard
-          icon={RefreshCw}
-          label={t('معالجة', 'Processing')}
-          value={stats.processing}
-          color="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
-        />
-        <StatCard
-          icon={CheckCircle2}
-          label={t('معتمد', 'Verified')}
-          value={stats.verified}
-          color="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
-        />
-        <StatCard
-          icon={TrendingUp}
-          label={t('مكتمل', 'Completed')}
-          value={stats.completed}
-          color="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-        />
-        <StatCard
-          icon={DollarSign}
-          label={t('الإيرادات', 'Revenue')}
-          value={`${stats.revenue} AED`}
-          color="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-        />
+      {/* Quick stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        <StatCard icon={ClipboardList} label={t('إجمالي الطلبات', 'Total applications')} value={stats.total}
+          tone="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" />
+        <StatCard icon={Inbox} label={t('الطلبات الجديدة', 'New applications')} value={stats.newCount}
+          tone="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" highlight={stats.newCount > 0} />
+        <StatCard icon={CheckCircle2} label={t('الطلبات المكتملة', 'Completed applications')} value={stats.completed}
+          tone="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" />
       </div>
 
-      {/* Filters */}
-      <Card className="p-4 mb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            {t('تصفية حسب الحالة:', 'Filter by status:')}
-          </span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-          >
-            <option value="all">{t('الكل', 'All')}</option>
-            <option value="submitted">{t('مُقدَّم', 'Submitted')}</option>
-            <option value="document_review">{t('مراجعة', 'Review')}</option>
-            <option value="processing">{t('معالجة', 'Processing')}</option>
-            <option value="verified">{t('تحقق', 'Verified')}</option>
-            <option value="completed">{t('مكتمل', 'Completed')}</option>
-            <option value="rejected">{t('مرفوض', 'Rejected')}</option>
-          </select>
+      {/* Tabs */}
+      <div className="inline-flex p-1 mb-4 rounded-xl bg-slate-100 dark:bg-slate-800" role="tablist">
+        <TabButton active={tab === 'requests'} onClick={() => setTab('requests')} icon={ClipboardList}
+          label={t('الطلبات', 'Applications')} badge={applications.length} />
+        <TabButton active={tab === 'customers'} onClick={() => setTab('customers')} icon={Users}
+          label={t('العملاء', 'Customers')} badge={deriveCustomers(applications).length} />
+      </div>
+
+      {/* Search + filters */}
+      <Card className="p-3 sm:p-4 mb-4">
+        <div className="relative">
+          <Search size={15} className="absolute top-1/2 -translate-y-1/2 start-3 text-slate-400 pointer-events-none" />
+          <input
+            type="search"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={tab === 'requests'
+              ? t('ابحث برقم المرجع أو اسم المتقدم أو رقم الجواز', 'Search by reference, applicant name or passport')
+              : t('ابحث بالاسم أو البريد أو الهاتف', 'Search by name, email or phone')}
+            className="w-full ps-9 pe-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          />
         </div>
+
+        {tab === 'requests' && (
+          <div className="flex flex-wrap gap-2 mt-3" role="group" aria-label={t('تصفية حسب الحالة', 'Filter by status')}>
+            {FILTER_ORDER.map(key => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                aria-pressed={filter === key}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  filter === key
+                    ? 'bg-emerald-600 border-emerald-600 text-white'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {FILTER_LABELS[key][lang]}
+                <span className={`min-w-[1.25rem] px-1 rounded-full text-[10px] leading-5 text-center ${
+                  filter === key ? 'bg-white/25 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}>{counts[key]}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </Card>
 
-      {/* Applications Table */}
-      <Card className="p-4">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700">
-                <th className="text-start py-3 px-2 font-medium text-slate-500">{t('المرجع', 'Ref')}</th>
-                <th className="text-start py-3 px-2 font-medium text-slate-500">{t('الخدمة', 'Service')}</th>
-                <th className="text-start py-3 px-2 font-medium text-slate-500">{t('المتقدم', 'Applicant')}</th>
-                <th className="text-start py-3 px-2 font-medium text-slate-500">{t('الحالة', 'Status')}</th>
-                <th className="text-start py-3 px-2 font-medium text-slate-500">{t('التاريخ', 'Date')}</th>
-                <th className="text-start py-3 px-2 font-medium text-slate-500">{t('إجراءات', 'Actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    <RefreshCw size={20} className="animate-spin mx-auto mb-2" />
-                    {t('جاري التحميل...', 'Loading...')}
-                  </td>
-                </tr>
-              ) : filteredApps.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    {t('لا توجد طلبات', 'No applications found')}
-                  </td>
-                </tr>
-              ) : (
-                filteredApps.map(app => {
-                  const service = SERVICES.find(s => s.id === app.serviceType);
-                  const applicant = app.applicants[0];
-                  return (
-                    <tr key={app.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="py-3 px-2 font-mono text-xs text-slate-900 dark:text-white" dir="ltr">
-                        {app.referenceCode}
-                      </td>
-                      <td className="py-3 px-2 text-slate-600 dark:text-slate-400">
-                        {service?.name[lang] || app.serviceType}
-                      </td>
-                      <td className="py-3 px-2">
-                        <div className="text-xs">
-                          <p className="font-medium text-slate-900 dark:text-white">
-                            {applicant?.fullName || 'N/A'}
-                          </p>
-                          <p className="text-slate-500">{applicant?.nationality}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-2">
-                        <StatusBadge status={app.status} lang={lang} />
-                      </td>
-                      <td className="py-3 px-2 text-xs text-slate-500">
-                        {new Date(app.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 px-2">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setSelectedApp(app)}
-                            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
-                            title={t('عرض', 'View')}
-                          >
-                            <Eye size={14} />
-                          </button>
-                          {app.documents && app.documents.length > 0 && (
-                            <button
-                              onClick={() => {
-                                const doc = app.documents[0];
-                                handleViewDocument(doc.storageKey, doc.fileName);
-                              }}
-                              className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
-                              title={t('عرض المستندات', 'View Documents')}
-                            >
-                              <FileText size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {/* Requests */}
+      {tab === 'requests' && (
+        <>
+          {visibleApps.length === 0 ? (
+            <EmptyState text={applications.length === 0
+              ? t('لا توجد طلبات مقدّمة بعد', 'No applications submitted yet')
+              : t('لا توجد طلبات مطابقة للتصفية', 'No applications match the filter')} />
+          ) : (
+            <>
+              {/* Phones: cards */}
+              <div className="space-y-3 md:hidden">
+                {visibleApps.map(app => (
+                  <Card key={app.id} className="p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="font-mono text-xs text-slate-500" dir="ltr">{app.referenceCode}</span>
+                      <StatusBadge status={app.status} lang={lang} />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{app.applicants[0]?.fullName ?? '—'}
+                      {app.applicants.length > 1 && <span className="text-xs font-normal text-slate-500"> (+{app.applicants.length - 1})</span>}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">{serviceName(app)} · {formatDate(app.createdAt)}</p>
+                    <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => openApp(app.id)}>
+                      <Settings size={14} />{t('إدارة الطلب', 'Manage')}
+                    </Button>
+                  </Card>
+                ))}
+              </div>
 
-      {/* Application Detail Modal */}
-      <Modal
-        isOpen={!!selectedApp}
-        onClose={() => setSelectedApp(null)}
-        title={t('تفاصيل الطلب', 'Application Details')}
-      >
+              {/* Tablets and desktops: table */}
+              <Card className="hidden md:block p-2 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-700 text-xs text-slate-500">
+                        <th className="text-start font-medium py-3 px-3">{t('المرجع', 'Reference')}</th>
+                        <th className="text-start font-medium py-3 px-3">{t('الخدمة', 'Service')}</th>
+                        <th className="text-start font-medium py-3 px-3">{t('المتقدم', 'Applicant')}</th>
+                        <th className="text-start font-medium py-3 px-3">{t('الحالة', 'Status')}</th>
+                        <th className="text-start font-medium py-3 px-3">{t('التاريخ', 'Date')}</th>
+                        <th className="py-3 px-3"><span className="sr-only">{t('إجراءات', 'Actions')}</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleApps.map(app => (
+                        <tr key={app.id} className="border-b last:border-0 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <td className="py-3 px-3 font-mono text-xs text-slate-900 dark:text-white" dir="ltr">{app.referenceCode}</td>
+                          <td className="py-3 px-3 text-slate-600 dark:text-slate-400">{serviceName(app)}</td>
+                          <td className="py-3 px-3">
+                            <p className="font-medium text-slate-900 dark:text-white">{app.applicants[0]?.fullName ?? '—'}
+                              {app.applicants.length > 1 && <span className="text-xs font-normal text-slate-500"> (+{app.applicants.length - 1})</span>}
+                            </p>
+                            <p className="text-xs text-slate-500">{app.applicants[0]?.nationality}</p>
+                          </td>
+                          <td className="py-3 px-3"><StatusBadge status={app.status} lang={lang} /></td>
+                          <td className="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">{formatDate(app.createdAt)}</td>
+                          <td className="py-3 px-3 text-end">
+                            <Button size="sm" variant="outline" onClick={() => openApp(app.id)}>
+                              <Settings size={13} />{t('إدارة', 'Manage')}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Customers */}
+      {tab === 'customers' && (
+        <>
+          <p className="text-[11px] text-slate-500 mb-2">
+            {t('قائمة العملاء مأخوذة من الطلبات المقدّمة.', 'The customer list is built from the submitted applications.')}
+          </p>
+          {customers.length === 0 ? (
+            <EmptyState text={t('لا يوجد عملاء مطابقون', 'No matching customers')} />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {customers.map(c => (
+                <Card key={c.key} className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-sm text-slate-900 dark:text-white truncate">{c.name || '—'}</p>
+                    {c.hasOpenRequest && <Badge color="info">{t('طلب مفتوح', 'Open request')}</Badge>}
+                  </div>
+                  <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                    <p className="flex items-center gap-1.5 min-w-0"><Mail size={12} className="shrink-0" /><span className="truncate" dir="ltr">{c.email || '—'}</span></p>
+                    <p className="flex items-center gap-1.5"><Phone size={12} className="shrink-0" /><span dir="ltr">{c.phone || '—'}</span></p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between text-[11px] text-slate-500">
+                    <span>{t('عدد الطلبات', 'Applications')}: <b className="text-slate-900 dark:text-white">{c.applications}</b></span>
+                    <span>{formatDate(c.lastActivity)}</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Manage application */}
+      <Modal isOpen={!!selectedApp} onClose={closeApp} title={t('إدارة الطلب', 'Manage application')}>
         {selectedApp && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-sm text-slate-500" dir="ltr">
-                {selectedApp.referenceCode}
-              </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-sm text-slate-500" dir="ltr">{selectedApp.referenceCode}</span>
               <StatusBadge status={selectedApp.status} lang={lang} />
             </div>
+            <p className="text-xs text-slate-500 -mt-2">{serviceName(selectedApp)} · {formatDate(selectedApp.createdAt)}</p>
 
-            {/* Applicant Info */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <h4 className="text-xs font-semibold mb-2">{t('المتقدم', 'Applicant')}</h4>
+            {/* Applicants */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg space-y-3">
               {selectedApp.applicants.map(a => (
-                <div key={a.id} className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
-                  <p className="font-medium text-slate-900 dark:text-white">{a.fullName}</p>
-                  <p>{a.nationality} | {a.passportNumber}</p>
-                  <p>{a.countryOfResidence} | {a.phone}</p>
+                <div key={a.id} className="text-xs text-slate-600 dark:text-slate-400 space-y-0.5">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{a.fullName}</p>
+                  <p>{a.nationality} · <span dir="ltr">{a.passportNumber}</span></p>
+                  <p>{a.countryOfResidence} · <span dir="ltr">{a.phone || '—'}</span></p>
+                  <p dir="ltr" className="text-start">{a.email || '—'}</p>
                 </div>
               ))}
             </div>
 
             {/* Documents */}
-            <div>
-              <h4 className="text-xs font-semibold mb-2">{t('المستندات', 'Documents')}</h4>
-              <div className="space-y-1">
-                {selectedApp.documents.map(d => (
-                  <div key={d.id} className="flex items-center justify-between text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded">
-                    <span className="truncate">{d.fileName}</span>
-                    <div className="flex items-center gap-1">
+            {selectedApp.documents.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold mb-2 text-slate-900 dark:text-white">{t('المستندات', 'Documents')}</h4>
+                <div className="space-y-1">
+                  {selectedApp.documents.map(d => (
+                    <div key={d.id} className="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded">
+                      <span className="flex items-center gap-1.5 min-w-0"><FileText size={12} className="shrink-0 text-slate-400" /><span className="truncate">{d.fileName}</span></span>
                       <Badge color={d.status === 'approved' ? 'success' : d.status === 'rejected' ? 'error' : 'warning'}>
-                        {d.status}
+                        {d.status === 'approved' ? t('مقبول', 'Approved') : d.status === 'rejected' ? t('مرفوض', 'Rejected') : t('قيد المراجعة', 'Pending')}
                       </Badge>
-                      <button
-                        onClick={() => handleViewDocument(d.storageKey, d.fileName)}
-                        className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
-                      >
-                        <Eye size={12} />
-                      </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Status Actions */}
+            {/* Change status + note */}
             <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
-              <h4 className="text-xs font-semibold mb-2">{t('تغيير الحالة', 'Change Status')}</h4>
-              <div className="flex flex-wrap gap-2">
-                {selectedApp.status === 'submitted' && (
-                  <Button size="sm" onClick={() => handleStatusChange(selectedApp.id, 'document_review')}>
-                    {t('بدء المراجعة', 'Start Review')}
+              <h4 className="text-xs font-semibold mb-2 text-slate-900 dark:text-white">{t('تغيير الحالة وإضافة ملاحظة للعميل', 'Change status and add a note for the customer')}</h4>
+
+              {nextStatuses.length === 0 ? (
+                <p className="text-xs text-slate-500">{t('لا يمكن تغيير حالة هذا الطلب.', 'The status of this application cannot be changed.')}</p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label htmlFor="admin-new-status" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{t('الحالة الجديدة', 'New status')}</label>
+                    <select
+                      id="admin-new-status"
+                      value={newStatus}
+                      onChange={e => { setNewStatus(e.target.value as ApplicationStatus | ''); setFormError(''); }}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">{t('اختر الحالة...', 'Select a status...')}</option>
+                      {nextStatuses.map(s => <option key={s} value={s}>{getStatusLabel(s, lang)}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="admin-note" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      {t('ملاحظة للعميل', 'Note for the customer')}{noteRequired ? <span className="text-red-500"> *</span> : <span className="text-slate-400"> {t('(اختياري)', '(optional)')}</span>}
+                    </label>
+                    <textarea
+                      id="admin-note"
+                      rows={3}
+                      maxLength={500}
+                      value={note}
+                      onChange={e => { setNote(e.target.value); setFormError(''); }}
+                      placeholder={newStatus === 'needs_revision'
+                        ? t('اكتب التعديلات المطلوبة من العميل...', 'Describe the changes the customer must make...')
+                        : newStatus === 'rejected'
+                          ? t('اكتب سبب الرفض...', 'Write the reason for rejection...')
+                          : t('اكتب ملاحظة تظهر للعميل...', 'Write a note the customer will see...')}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500 resize-y"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-0.5 text-end" dir="ltr">{note.length}/500</p>
+                  </div>
+
+                  {formError && (
+                    <div role="alert" className="flex items-start gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-600">
+                      <AlertCircle size={12} className="mt-0.5 shrink-0" />{formError}
+                    </div>
+                  )}
+
+                  <Button className="w-full" onClick={handleSave} disabled={!newStatus}>
+                    <MessageSquare size={14} />{t('حفظ التغيير', 'Save change')}
                   </Button>
-                )}
-                {selectedApp.status === 'document_review' && (
-                  <>
-                    <Button size="sm" onClick={() => handleStatusChange(selectedApp.id, 'processing')}>
-                      {t('قبول', 'Accept')}
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => handleStatusChange(selectedApp.id, 'rejected')}>
-                      {t('رفض', 'Reject')}
-                    </Button>
-                  </>
-                )}
-                {selectedApp.status === 'processing' && (
-                  <Button size="sm" onClick={() => handleStatusChange(selectedApp.id, 'verified')}>
-                    {t('تحقق', 'Verify')}
-                  </Button>
-                )}
-                {selectedApp.status === 'verified' && (
-                  <Button size="sm" onClick={() => handleStatusChange(selectedApp.id, 'approved_for_payment')}>
-                    {t('اعتماد دفع', 'Approve Payment')}
-                  </Button>
-                )}
-                {selectedApp.status === 'approved_for_payment' && (
-                  <Button size="sm" onClick={() => handleStatusChange(selectedApp.id, 'completed')}>
-                    {t('إكمال', 'Complete')}
-                  </Button>
-                )}
-              </div>
+                </div>
+              )}
+
+              {flash && (
+                <div role="status" className="flex items-start gap-1.5 mt-3 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded text-xs text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 size={12} className="mt-0.5 shrink-0" />{flash}
+                </div>
+              )}
             </div>
 
             {/* Timeline */}
             <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
-              <h4 className="text-xs font-semibold mb-2">{t('السجل', 'Timeline')}</h4>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
+              <h4 className="text-xs font-semibold mb-2 text-slate-900 dark:text-white">{t('السجل', 'History')}</h4>
+              <ol className="space-y-2 max-h-52 overflow-y-auto">
                 {[...selectedApp.statusHistory].reverse().map(ev => (
-                  <div key={ev.id} className="text-[10px] text-slate-500 flex items-center gap-1">
-                    <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                    <span>{getStatusLabel(ev.toStatus, lang)}</span>
-                    <span className="text-slate-400">
-                      {new Date(ev.timestamp).toLocaleString()}
-                    </span>
-                  </div>
+                  <li key={ev.id} className="flex gap-2 text-xs">
+                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-slate-900 dark:text-white font-medium">
+                        {ev.fromStatus ? `${getStatusLabel(ev.fromStatus, lang)} ← ` : ''}{getStatusLabel(ev.toStatus, lang)}
+                      </p>
+                      {ev.note && <p className="mt-0.5 p-1.5 rounded bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 break-words">{ev.note}</p>}
+                      <p className="text-[10px] text-slate-400 mt-0.5">{formatDateTime(ev.timestamp)}</p>
+                    </div>
+                  </li>
                 ))}
-              </div>
+              </ol>
             </div>
           </div>
         )}
-      </Modal>
-
-      {/* Document Viewer Modal */}
-      <Modal
-        isOpen={showDocViewer}
-        onClose={() => setShowDocViewer(false)}
-        title={selectedDocName}
-      >
-        <div className="space-y-3">
-          {selectedDocUrl && (
-            <div className="bg-slate-100 dark:bg-slate-800 rounded-lg p-4 text-center">
-              {selectedDocUrl.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-                <img
-                  src={selectedDocUrl}
-                  alt={selectedDocName}
-                  className="max-w-full max-h-96 mx-auto rounded"
-                />
-              ) : (
-                <div className="py-8">
-                  <FileText size={48} className="mx-auto text-slate-400 mb-2" />
-                  <p className="text-sm text-slate-600 dark:text-slate-400">{selectedDocName}</p>
-                  <a
-                    href={selectedDocUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 mt-3 text-sm text-emerald-600 hover:underline"
-                  >
-                    <Download size={14} />
-                    {t('تحميل', 'Download')}
-                  </a>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="flex justify-end">
-            <Button variant="ghost" onClick={() => setShowDocViewer(false)}>
-              {t('إغلاق', 'Close')}
-            </Button>
-          </div>
-        </div>
       </Modal>
     </div>
   );
 }
 
-function StatCard({ icon: Icon, label, value, color }: {
+function StatCard({ icon: Icon, label, value, tone, highlight = false }: {
   icon: React.ElementType;
   label: string;
-  value: string | number;
-  color: string;
+  value: number;
+  tone: string;
+  highlight?: boolean;
 }) {
   return (
-    <Card className="p-3">
-      <div className="flex items-center gap-2">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon size={14} />
+    <Card className={`p-4 ${highlight ? 'ring-2 ring-blue-400/60' : ''}`}>
+      <div className="flex items-center gap-3">
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${tone}`}>
+          <Icon size={20} />
         </div>
         <div>
-          <p className="text-lg font-bold text-slate-900 dark:text-white">{value}</p>
-          <p className="text-[10px] text-slate-500">{label}</p>
+          <p className="text-2xl font-bold leading-none text-slate-900 dark:text-white">{value}</p>
+          <p className="text-xs text-slate-500 mt-1">{label}</p>
         </div>
       </div>
+    </Card>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, label, badge }: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+  badge: number;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+        active
+          ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm'
+          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+      }`}
+    >
+      <Icon size={14} />{label}
+      <span className="text-[10px] px-1.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{badge}</span>
+    </button>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <Card className="p-8 text-center">
+      <Inbox size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+      <p className="text-sm text-slate-500">{text}</p>
     </Card>
   );
 }

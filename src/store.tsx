@@ -12,6 +12,8 @@ interface AppState {
   applications: Application[];
   notifications: Notification[];
   isAuthenticated: boolean;
+  /** false until the saved Supabase session has been checked; protected routes wait for it */
+  authReady: boolean;
   preferences: UserPreferences;
   hasSeenWelcome: boolean;
 }
@@ -21,6 +23,7 @@ type Action =
   | { type: 'SET_THEME'; payload: Theme }
   | { type: 'LOGIN'; payload: User }
   | { type: 'LOGOUT' }
+  | { type: 'AUTH_READY' }
   | { type: 'UPDATE_STATUS'; payload: { appId: string; status: ApplicationStatus; note?: string } }
   | { type: 'ADD_APP'; payload: Application }
   | { type: 'READ_NOTIF'; payload: string }
@@ -54,6 +57,7 @@ const initialState: AppState = {
   applications: MOCK_APPLICATIONS,
   notifications: MOCK_NOTIFICATIONS,
   isAuthenticated: false,
+  authReady: false,
   preferences: initialPreferences,
   hasSeenWelcome: loadWelcomeSeen(),
 };
@@ -82,13 +86,16 @@ function reducer(state: AppState, action: Action): AppState {
         ...state, 
         currentUser: action.payload, 
         isAuthenticated: true,
+        authReady: true,
         lang: userPrefs.language,
         preferences: userPrefs,
         hasSeenWelcome: true,
       };
     }
     case 'LOGOUT':
-      return { ...state, currentUser: null, isAuthenticated: false };
+      return { ...state, currentUser: null, isAuthenticated: false, authReady: true };
+    case 'AUTH_READY':
+      return state.authReady ? state : { ...state, authReady: true };
     case 'UPDATE_STATUS': {
       const { appId, status, note } = action.payload;
       return {
@@ -159,6 +166,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Keep the UI in sync with the Supabase session: restores the login after a page reload and signs the
   // user in after they click the email confirmation link (Supabase puts the session in the URL).
   useEffect(() => {
+    // Safety net: never leave protected routes waiting forever if the session check hangs (e.g. offline)
+    const readyTimer = setTimeout(() => dispatch({ type: 'AUTH_READY' }), 4000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         dispatch({ type: 'LOGOUT' });
@@ -167,8 +177,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (session?.user?.email_confirmed_at && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
         dispatch({ type: 'LOGIN', payload: toAppUser(session.user) });
       }
+      if (event === 'INITIAL_SESSION') dispatch({ type: 'AUTH_READY' });
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      clearTimeout(readyTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<SignInResult> => {

@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS applications (
   service_id TEXT REFERENCES services(id),
   user_id UUID REFERENCES profiles(id),
   agency_id UUID REFERENCES agencies(id),
-  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'document_review', 'processing', 'verified', 'approved_for_payment', 'payment_pending', 'completed', 'rejected', 'cancelled')),
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'document_review', 'needs_revision', 'processing', 'verified', 'approved_for_payment', 'payment_pending', 'completed', 'rejected', 'cancelled')),
   payment_status TEXT DEFAULT 'not_due' CHECK (payment_status IN ('not_due', 'due', 'paid', 'refunded')),
   total_cost DECIMAL(10,2) DEFAULT 0,
   service_fee DECIMAL(10,2) DEFAULT 0,

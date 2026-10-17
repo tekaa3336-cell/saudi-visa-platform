@@ -1,6 +1,7 @@
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import type { User } from '../types';
+import { isAdminEmail } from '../config/admin';
 import {
   AUTH_MESSAGES,
   interpretSignUpResponse,
@@ -26,19 +27,23 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 /**
  * Maps a Supabase auth user to the app's User.
- * The role is always 'customer' here on purpose: user_metadata is editable by the user, so it must never
- * decide privileges. Elevated roles (agency / admin) have to come from a server-side source.
+ *
+ * The role is 'admin' only for a confirmed email that is either in the approved admin list or carries
+ * role 'admin' in app_metadata. app_metadata can only be written server-side (service role / dashboard),
+ * unlike user_metadata which the user can edit, so user_metadata must never decide privileges.
  */
 export function toAppUser(su: SupabaseUser): User {
   const email = su.email ?? '';
   const metaName = su.user_metadata?.full_name;
+  const emailConfirmed = !!su.email_confirmed_at;
+  const isAdmin = emailConfirmed && (su.app_metadata?.role === 'admin' || isAdminEmail(email));
   return {
     id: su.id,
     email,
     name: typeof metaName === 'string' && metaName.trim() ? metaName.trim() : email.split('@')[0],
-    role: 'customer',
+    role: isAdmin ? 'admin' : 'customer',
     createdAt: su.created_at,
-    isVerified: !!su.email_confirmed_at,
+    isVerified: emailConfirmed,
   };
 }
 

@@ -40,7 +40,7 @@ export default function App() {
             <Route path="/dashboard" element={<CustomerDashboard />} />
             <Route path="/agency" element={<AgencyDashboard />} />
             <Route path="/admin" element={
-              <ProtectedRoute allowedEmails={['admin@demo.com', 'tekaa336@gmail.com']}>
+              <ProtectedRoute requireAdmin>
                 <AdminDashboard />
               </ProtectedRoute>
             } />
