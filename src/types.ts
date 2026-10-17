@@ -19,6 +19,7 @@ export type ApplicationStatus =
   | 'draft'
   | 'submitted'
   | 'document_review'
+  | 'needs_revision'
   | 'processing'
   | 'verified'
   | 'approved_for_payment'
@@ -209,9 +210,11 @@ export interface AuditLog {
 // Status transition rules
 export const STATUS_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
   draft: ['submitted', 'cancelled'],
-  submitted: ['document_review', 'rejected', 'cancelled'],
-  document_review: ['processing', 'submitted', 'rejected'],
-  processing: ['verified', 'rejected'],
+  submitted: ['document_review', 'needs_revision', 'rejected', 'cancelled'],
+  document_review: ['processing', 'submitted', 'needs_revision', 'rejected'],
+  // The customer fixes the request and resubmits it ('submitted'), or the admin moves it back to review
+  needs_revision: ['submitted', 'document_review', 'rejected', 'cancelled'],
+  processing: ['verified', 'needs_revision', 'rejected'],
   verified: ['approved_for_payment', 'processing'],
   approved_for_payment: ['payment_pending', 'completed'],
   payment_pending: ['completed', 'cancelled'],
@@ -224,6 +227,7 @@ export const STATUS_COLORS: Record<ApplicationStatus, string> = {
   draft: 'bg-gray-100 text-gray-700',
   submitted: 'bg-blue-100 text-blue-700',
   document_review: 'bg-yellow-100 text-yellow-700',
+  needs_revision: 'bg-amber-100 text-amber-800',
   processing: 'bg-purple-100 text-purple-700',
   verified: 'bg-emerald-100 text-emerald-700',
   approved_for_payment: 'bg-green-100 text-green-700',

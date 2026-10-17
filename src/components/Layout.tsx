@@ -7,8 +7,9 @@ import { WelcomeModal } from './WelcomeModal';
 import {
   Menu, X, Globe, Moon, Sun, User, LogOut, Plane, Phone,
   MessageCircle, Mail, Home, FileText, BarChart3, HelpCircle,
-  ChevronDown, MapPin, DollarSign, Languages
+  ChevronDown, MapPin, DollarSign, Languages, ShieldCheck
 } from 'lucide-react';
+import { isAdminUser } from '../config/admin';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { state, setLang, setTheme, logout, setPreferences, markWelcomeSeen, t } = useApp();
@@ -18,6 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [showWelcome, setShowWelcome] = useState(!state.hasSeenWelcome);
   const location = useLocation();
   const navigate = useNavigate();
+  const isAdmin = state.isAuthenticated && isAdminUser(state.currentUser);
 
   const selectedCountry = getCountryByCode(state.preferences.country);
   const selectedCurrency = getCurrencyByCode(state.preferences.currency);
@@ -196,10 +198,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="hidden md:flex items-center gap-2">
             {state.isAuthenticated ? (
               <>
-                <Link to={state.currentUser?.role === 'admin' ? '/admin' : state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                  <User size={14} />{state.currentUser?.name}
-                </Link>
+                {isAdmin ? (
+                  <Link to="/admin"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors">
+                    <ShieldCheck size={14} />{t('مدير النظام', 'Admin')}
+                  </Link>
+                ) : (
+                  <Link to={state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <User size={14} />{state.currentUser?.name}
+                  </Link>
+                )}
                 <button onClick={handleLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title={t('تسجيل الخروج', 'Logout')}>
                   <LogOut size={14} />
                 </button>
@@ -233,10 +242,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <hr className="my-2 border-slate-200 dark:border-slate-700" />
               {state.isAuthenticated ? (
                 <>
-                  <Link to={state.currentUser?.role === 'admin' ? '/admin' : state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
+                  <Link to={isAdmin ? '/admin' : state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                    <User size={15} />{t('لوحة التحكم', 'Dashboard')}
+                    {isAdmin ? <ShieldCheck size={15} /> : <User size={15} />}{isAdmin ? t('مدير النظام', 'Admin') : t('لوحة التحكم', 'Dashboard')}
                   </Link>
                   <button onClick={() => { handleLogout(); setMobileOpen(false); }} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600">
                     <LogOut size={15} />{t('خروج', 'Logout')}
@@ -405,14 +414,16 @@ export function Modal({ isOpen, onClose, title, children }: { isOpen: boolean; o
 export function StatusBadge({ status, lang }: { status: string; lang: 'ar' | 'en' }) {
   const labels: Record<string, { ar: string; en: string }> = {
     draft: { ar: 'مسودة', en: 'Draft' }, submitted: { ar: 'مُقدَّم', en: 'Submitted' },
-    document_review: { ar: 'مراجعة', en: 'Review' }, processing: { ar: 'معالجة', en: 'Processing' },
+    document_review: { ar: 'مراجعة', en: 'Review' }, needs_revision: { ar: 'يتطلب تعديل', en: 'Needs changes' },
+    processing: { ar: 'معالجة', en: 'Processing' },
     verified: { ar: 'تحقق', en: 'Verified' }, approved_for_payment: { ar: 'معتمد', en: 'Approved' },
     payment_pending: { ar: 'دفع', en: 'Payment' }, completed: { ar: 'مكتمل', en: 'Completed' },
     rejected: { ar: 'مرفوض', en: 'Rejected' }, cancelled: { ar: 'ملغي', en: 'Cancelled' },
   };
   const colors: Record<string, string> = {
     draft: 'bg-gray-100 text-gray-700', submitted: 'bg-blue-100 text-blue-700',
-    document_review: 'bg-yellow-100 text-yellow-700', processing: 'bg-purple-100 text-purple-700',
+    document_review: 'bg-yellow-100 text-yellow-700', needs_revision: 'bg-amber-100 text-amber-800',
+    processing: 'bg-purple-100 text-purple-700',
     verified: 'bg-emerald-100 text-emerald-700', approved_for_payment: 'bg-green-100 text-green-700',
     payment_pending: 'bg-orange-100 text-orange-700', completed: 'bg-emerald-600 text-white',
     rejected: 'bg-red-100 text-red-700', cancelled: 'bg-gray-200 text-gray-600',

@@ -178,7 +178,8 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
 export const getStatusLabel = (status: ApplicationStatus, lang: 'ar' | 'en'): string => {
   const labels: Record<ApplicationStatus, { ar: string; en: string }> = {
     draft: { ar: 'مسودة', en: 'Draft' }, submitted: { ar: 'مُقدَّم', en: 'Submitted' },
-    document_review: { ar: 'مراجعة', en: 'Review' }, processing: { ar: 'معالجة', en: 'Processing' },
+    document_review: { ar: 'مراجعة', en: 'Review' }, needs_revision: { ar: 'يتطلب تعديل', en: 'Needs changes' },
+    processing: { ar: 'معالجة', en: 'Processing' },
     verified: { ar: 'تحقق', en: 'Verified' }, approved_for_payment: { ar: 'معتمد', en: 'Approved' },
     payment_pending: { ar: 'دفع', en: 'Payment' }, completed: { ar: 'مكتمل', en: 'Completed' },
     rejected: { ar: 'مرفوض', en: 'Rejected' }, cancelled: { ar: 'ملغي', en: 'Cancelled' },
