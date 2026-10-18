@@ -2,6 +2,7 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import type { User } from '../types';
 import { isAdminEmail } from '../config/admin';
+import { usedEmailOtp } from './session';
 import {
   AUTH_MESSAGES,
   interpretSignUpResponse,
@@ -12,7 +13,15 @@ import {
 } from './authErrors';
 
 export type { AuthMessage, SignUpResult };
-export type SignInResult = { ok: true; user: User } | { ok: false; message: AuthMessage };
+/**
+ * Step 1 result. Admin accounts get `otpRequired`: they are NOT signed in yet, a one-time code was emailed
+ * and must be entered (step 2) before the session is granted.
+ */
+export type SignInResult =
+  | { ok: true; user: User }
+  | { ok: true; otpRequired: true; email: string }
+  | { ok: false; message: AuthMessage };
+export type OtpResult = { ok: true; user: User } | { ok: false; message: AuthMessage };
 export type ResendResult = { ok: true } | { ok: false; message: AuthMessage };
 
 /**
@@ -77,6 +86,37 @@ export async function signUpWithEmail(input: {
   }
 }
 
+/** Is this (password-authenticated) account an admin? The database answers; the client list is a fallback. */
+async function isAdminAccount(su: SupabaseUser): Promise<boolean> {
+  const clientSide = su.app_metadata?.role === 'admin' || isAdminEmail(su.email);
+  try {
+    const { data, error } = await supabase.rpc('is_admin_account');
+    if (!error && typeof data === 'boolean') return data || clientSide;
+  } catch {
+    // fall through to the client-side answer
+  }
+  return clientSide;
+}
+
+/** Emails a fresh 6-digit code. Never creates an account (shouldCreateUser: false). */
+export async function sendAdminOtp(email: string): Promise<ResendResult> {
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizeEmail(email),
+      options: { shouldCreateUser: false },
+    });
+    if (error) return { ok: false, message: translateAuthError(error) };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: translateAuthError(err as AuthErrorLike) };
+  }
+}
+
+/**
+ * Step 1: email + password.
+ * Regular users are signed in right away. For admins the password session is discarded and a fresh email
+ * code is sent: access is granted only by verifyAdminOtp (step 2), on every login.
+ */
 export async function signInWithEmail(email: string, password: string): Promise<SignInResult> {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -91,7 +131,46 @@ export async function signInWithEmail(email: string, password: string): Promise<
       return { ok: false, message: AUTH_MESSAGES.emailNotConfirmed };
     }
 
+    if (await isAdminAccount(data.user)) {
+      const adminEmail = data.user.email ?? normalizeEmail(email);
+      // Drop the password-only session: it must not unlock anything on its own
+      await supabase.auth.signOut({ scope: 'local' });
+      const sent = await sendAdminOtp(adminEmail);
+      if (!sent.ok) return sent;
+      return { ok: true, otpRequired: true, email: adminEmail };
+    }
+
     return { ok: true, user: toAppUser(data.user) };
+  } catch (err) {
+    return { ok: false, message: translateAuthError(err as AuthErrorLike) };
+  }
+}
+
+/** Step 2: checks the emailed code. The resulting session is the one the admin dashboard accepts. */
+export async function verifyAdminOtp(email: string, code: string): Promise<OtpResult> {
+  const token = code.replace(/\s+/g, '');
+  if (!/^\d{6,8}$/.test(token)) return { ok: false, message: AUTH_MESSAGES.otpFormat };
+
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizeEmail(email),
+      token,
+      type: 'email',
+    });
+    if (error) return { ok: false, message: translateAuthError(error) };
+
+    const user = data.user;
+    const accessToken = data.session?.access_token;
+    if (!user || !accessToken || !usedEmailOtp(accessToken)) {
+      await supabase.auth.signOut({ scope: 'local' });
+      return { ok: false, message: AUTH_MESSAGES.otpSessionMissing };
+    }
+    if (!(await isAdminAccount(user))) {
+      await supabase.auth.signOut({ scope: 'local' });
+      return { ok: false, message: AUTH_MESSAGES.notAdmin };
+    }
+
+    return { ok: true, user: { ...toAppUser(user), role: 'admin' } };
   } catch (err) {
     return { ok: false, message: translateAuthError(err as AuthErrorLike) };
   }

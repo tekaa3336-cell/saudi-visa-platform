@@ -65,6 +65,26 @@ export const AUTH_MESSAGES = {
     ar: 'تم إنشاء الحساب لكن تأكيد البريد الإلكتروني غير مفعّل في إعدادات المنصة، لذلك لم يُرسل رابط التأكيد. يرجى التواصل مع الدعم',
     en: 'The account was created but email confirmation is not enabled on the platform, so no confirmation link was sent. Please contact support',
   },
+  otpInvalid: {
+    ar: 'رمز التحقق غير صحيح أو منتهي الصلاحية. اطلب رمزاً جديداً وحاول مرة أخرى',
+    en: 'The verification code is incorrect or has expired. Request a new code and try again',
+  },
+  otpFormat: {
+    ar: 'أدخل رمز التحقق المكوّن من الأرقام الذي وصلك على بريدك الإلكتروني',
+    en: 'Enter the numeric verification code sent to your email',
+  },
+  otpUnavailable: {
+    ar: 'تعذّر إرسال رمز التحقق إلى هذا الحساب. تواصل مع الدعم الفني',
+    en: 'We could not send a verification code to this account. Please contact support',
+  },
+  otpSessionMissing: {
+    ar: 'انتهت جلسة التحقق. أعد إدخال البريد الإلكتروني وكلمة المرور',
+    en: 'The verification step expired. Enter your email and password again',
+  },
+  notAdmin: {
+    ar: 'هذا الحساب لا يملك صلاحية الدخول إلى لوحة الإدارة',
+    en: 'This account is not allowed to open the admin dashboard',
+  },
   unknown: {
     ar: 'حدث خطأ غير متوقع. حاول مرة أخرى',
     en: 'An unexpected error occurred. Please try again',
@@ -103,6 +123,10 @@ export function translateAuthError(error: AuthErrorLike | null | undefined): Aut
       return AUTH_MESSAGES.signupDisabled;
     case 'user_banned':
       return AUTH_MESSAGES.userBanned;
+    case 'otp_expired':
+      return AUTH_MESSAGES.otpInvalid;
+    case 'otp_disabled':
+      return AUTH_MESSAGES.otpUnavailable;
   }
 
   // 2) Network failures (supabase-js throws these when the request never reaches the server)
@@ -129,6 +153,11 @@ export function translateAuthError(error: AuthErrorLike | null | undefined): Aut
   if (message.includes('unable to validate email') || message.includes('invalid email')) {
     return AUTH_MESSAGES.invalidEmail;
   }
+  if (message.includes('token has expired') || message.includes('otp expired') || message.includes('invalid token')) {
+    return AUTH_MESSAGES.otpInvalid;
+  }
+  // signInWithOtp with shouldCreateUser:false answers like this when the email has no account
+  if (message.includes('signups not allowed for otp')) return AUTH_MESSAGES.otpUnavailable;
   if (message.includes('signups not allowed') || message.includes('signup is disabled')) {
     return AUTH_MESSAGES.signupDisabled;
   }

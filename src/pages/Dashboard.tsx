@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES, getStatusLabel } from '../data';
 import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button, Badge, StatusBadge, Modal } from '../components/Layout';
-import { FileText, Clock, CheckCircle2, Bell, Plus, Building2, BarChart3, Upload, Download, ChevronRight } from 'lucide-react';
-import type { ApplicationStatus } from '../types';
+import { FileText, Clock, CheckCircle2, Bell, Plus, Building2, BarChart3, Upload, Download, ChevronRight, AlertTriangle, RefreshCw } from 'lucide-react';
+import type { Application, ApplicationStatus } from '../types';
+import { listMyApplications } from '../lib/applicationsApi';
+import { latestRevisionNote } from '../lib/applicationMapper';
 
 // Customer Dashboard
 export function CustomerDashboard() {
@@ -15,9 +17,31 @@ export function CustomerDashboard() {
   const navigate = useNavigate();
   const [selectedApp, setSelectedApp] = useState<string | null>(null);
 
-  if (!state.isAuthenticated) { navigate('/login'); return null; }
+  // My applications come from Supabase (RLS returns only this user's rows)
+  const [myApps, setMyApps] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const userId = state.currentUser?.id;
 
-  const myApps = state.applications.filter(a => a.userId === state.currentUser?.id);
+  const load = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+    const res = await listMyApplications(userId);
+    if (res.ok) { setMyApps(res.data); setLoadError(''); }
+    else setLoadError(t(res.message.ar, res.message.en));
+    setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // Wait for the saved session to be restored before deciding to redirect
+  useEffect(() => {
+    if (state.authReady && !state.isAuthenticated) navigate('/login', { replace: true, state: { from: '/dashboard' } });
+  }, [state.authReady, state.isAuthenticated, navigate]);
+
+  if (!state.isAuthenticated) return null;
+
   const unreadNotifs = state.notifications.filter(n => n.userId === state.currentUser?.id && !n.read);
   const selectedApplication = myApps.find(a => a.id === selectedApp);
 
@@ -48,6 +72,27 @@ export function CustomerDashboard() {
         ))}
       </div>
 
+      {/* Action required: the admin asked for changes */}
+      {myApps.filter(a => a.status === 'needs_revision').map(app => {
+        const note = latestRevisionNote(app);
+        return (
+          <Card key={app.id} className="p-4 mb-4 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+                  {t('طلبك يتطلب تعديلاً', 'Your application needs changes')} <span className="font-mono text-xs font-normal" dir="ltr">({app.referenceCode})</span>
+                </p>
+                {note?.note && <p className="mt-1 text-xs text-amber-800 dark:text-amber-400 whitespace-pre-wrap break-words">{note.note}</p>}
+                <Link to={`/applications/${app.id}/resubmit`} className="inline-block mt-2">
+                  <Button size="sm">{t('تعديل وإعادة الإرسال', 'Edit & resubmit')}</Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+
       {/* Notifications */}
       {unreadNotifs.length > 0 && (
         <Card className="p-3 mb-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
@@ -58,8 +103,16 @@ export function CustomerDashboard() {
 
       {/* Applications */}
       <Card className="p-4">
-        <h3 className="font-bold text-slate-900 dark:text-white text-sm mb-3">{t('طلباتي', 'My Applications')}</h3>
-        {myApps.length === 0 ? (
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-slate-900 dark:text-white text-sm">{t('طلباتي', 'My Applications')}</h3>
+          <button type="button" onClick={() => void load()} disabled={loading} aria-label={t('تحديث', 'Refresh')} className="text-slate-400 hover:text-emerald-600">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+        {loadError && <p role="alert" className="text-xs text-red-600 mb-2">{loadError}</p>}
+        {loading && myApps.length === 0 ? (
+          <p className="text-xs text-slate-500 text-center py-6">{t('جارٍ التحميل...', 'Loading...')}</p>
+        ) : myApps.length === 0 ? (
           <div className="text-center py-6">
             <FileText size={24} className="mx-auto text-slate-300 dark:text-slate-700 mb-2" />
             <p className="text-xs text-slate-500">{t('لا توجد طلبات', 'No applications')}</p>
@@ -108,10 +161,11 @@ export function CustomerDashboard() {
               <h4 className="text-xs font-semibold mb-1">{t('السجل', 'Timeline')}</h4>
               <div className="space-y-1">
                 {[...selectedApplication.statusHistory].reverse().map(ev => (
-                  <div key={ev.id} className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <div key={ev.id} className="text-[10px] text-slate-500 flex flex-wrap items-center gap-1">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     <span>{getStatusLabel(ev.toStatus, lang)}</span>
                     <span className="text-slate-400">{new Date(ev.timestamp).toLocaleDateString()}</span>
+                    {ev.note && <span className="text-slate-600 dark:text-slate-300 break-words">— {ev.note}</span>}
                   </div>
                 ))}
               </div>
@@ -346,7 +400,7 @@ export function AdminDashboard() {
               <h4 className="text-xs font-semibold mb-1">{t('السجل', 'Audit')}</h4>
               <div className="space-y-1 max-h-24 overflow-y-auto">
                 {[...selectedApplication.statusHistory].reverse().map(ev => (
-                  <div key={ev.id} className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <div key={ev.id} className="text-[10px] text-slate-500 flex flex-wrap items-center gap-1">
                     <div className="w-1 h-1 rounded-full bg-emerald-500" />
                     <span>{getStatusLabel(ev.toStatus, lang)}</span>
                     <span className="text-slate-400">{new Date(ev.timestamp).toLocaleString()}</span>

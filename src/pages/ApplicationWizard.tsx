@@ -5,12 +5,13 @@ import { SERVICES } from '../data';
 import { convertCurrency, formatCurrency } from '../preferences';
 import { Card, Button, Input, Select, Stepper } from '../components/Layout';
 import { SearchableSelect } from '../components/SearchableSelect';
-import { DocumentUpload } from '../components/DocumentUpload';
+import { DocumentUpload, type UploadedFileData } from '../components/DocumentUpload';
+import { submitApplication } from '../lib/applicationsApi';
 import { RESIDENCE_COUNTRIES } from '../data/countries';
 import { NATIONALITIES } from '../data/nationalities';
 import { Upload, CheckCircle2, FileText, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import type { Applicant, Application } from '../types';
+import type { Applicant } from '../types';
 import {
   validateDateOfBirth,
   validatePassportExpiry,
@@ -21,7 +22,7 @@ import {
 
 export default function ApplicationWizard() {
   const { serviceId } = useParams<{ serviceId: string }>();
-  const { state, t, addApplication } = useApp();
+  const { state, t } = useApp();
   const navigate = useNavigate();
   const lang = state.lang;
   const currency = state.preferences.currency;
@@ -33,7 +34,8 @@ export default function ApplicationWizard() {
     id: uuidv4(), fullName: '', nationality: '', passportNumber: '', passportExpiry: '',
     dateOfBirth: '', countryOfResidence: '', phone: '', email: '',
   }]);
-  const [uploadedDocs, setUploadedDocs] = useState<Record<string, Record<string, { name: string; url: string; size: number }>>>({});
+  const [uploadedDocs, setUploadedDocs] = useState<Record<string, Record<string, UploadedFileData>>>({});
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [referenceCode, setReferenceCode] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -187,7 +189,7 @@ export default function ApplicationWizard() {
     setValidationError(null);
   };
 
-  const handleDocumentUpload = (applicantId: string, documentType: string, fileData: { name: string; url: string; size: number }) => {
+  const handleDocumentUpload = (applicantId: string, documentType: string, fileData: UploadedFileData) => {
     setUploadedDocs(prev => ({
       ...prev,
       [applicantId]: {
@@ -234,32 +236,36 @@ export default function ApplicationWizard() {
     return isValid;
   };
 
-  const handleSubmit = () => {
-    const code = `VSA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
-    setReferenceCode(code);
-    const application: Application = {
-      id: uuidv4(), referenceCode: code, serviceType: service.id,
-      userId: state.currentUser?.id || 'guest', applicants,
-      status: 'submitted', paymentStatus: 'not_due',
-      documents: applicants.flatMap(a => {
-        const applicantDocs = uploadedDocs[a.id] || {};
-        return Object.entries(applicantDocs).map(([docType, docData]) => ({
-          id: uuidv4(),
-          applicantId: a.id,
-          type: docType,
-          fileName: docData.name,
-          storageKey: `docs/${code}/${docData.name}`,
-          status: 'pending' as const,
-          uploadedAt: new Date().toISOString(),
-        }));
-      }),
-      statusHistory: [{ id: uuidv4(), applicationId: '', fromStatus: null, toStatus: 'submitted',
-        actorId: state.currentUser?.id || 'guest', actorRole: state.currentUser?.role || 'visitor', timestamp: new Date().toISOString() }],
-      totalCost: service.pricing.serviceFee + service.pricing.governmentFee,
-      serviceFee: service.pricing.serviceFee, governmentFee: service.pricing.governmentFee,
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    };
-    addApplication(application);
+  const handleSubmit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setValidationError(null);
+
+    // Saved in Supabase through the submit_application function: it re-validates everything on the server
+    const result = await submitApplication({
+      serviceId: service.id,
+      applicants,
+      documents: applicants.flatMap((a, applicantIndex) =>
+        Object.entries(uploadedDocs[a.id] || {}).map(([docType, doc]) => ({
+          applicantIndex,
+          documentType: docType,
+          fileName: doc.name,
+          storageKey: doc.storageKey,
+          mimeType: doc.mimeType,
+          fileSize: doc.size,
+        }))),
+      serviceFee: service.pricing.serviceFee,
+      governmentFee: service.pricing.governmentFee,
+    });
+    setSubmitting(false);
+
+    if (!result.ok) {
+      setValidationError(t(result.message.ar, result.message.en));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setReferenceCode(result.data.referenceCode);
     setSubmitted(true);
     setStep(4);
   };
@@ -504,7 +510,7 @@ export default function ApplicationWizard() {
           </div>
           <div className="flex justify-between">
             <Button variant="ghost" onClick={() => setStep(2)}>{t('السابق', 'Back')}</Button>
-            <Button onClick={handleSubmit}><CheckCircle2 size={14} />{t('تقديم', 'Submit')}</Button>
+            <Button onClick={handleSubmit} disabled={submitting}><CheckCircle2 size={14} />{submitting ? t('جارٍ الإرسال...', 'Submitting...') : t('تقديم', 'Submit')}</Button>
           </div>
         </div>
       )}

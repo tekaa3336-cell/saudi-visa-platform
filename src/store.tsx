@@ -3,7 +3,8 @@ import type { Lang, Theme, User, Application, ApplicationStatus, Notification, U
 import { STATUS_TRANSITIONS } from './types';
 import { MOCK_APPLICATIONS, MOCK_NOTIFICATIONS } from './data';
 import { supabase } from './lib/supabaseClient';
-import { signInWithEmail, signOutLocal, toAppUser, type SignInResult } from './lib/auth';
+import { signInWithEmail, verifyAdminOtp, signOutLocal, toAppUser, type SignInResult, type OtpResult } from './lib/auth';
+import { usedEmailOtp } from './lib/session';
 
 interface AppState {
   lang: Lang;
@@ -77,14 +78,20 @@ function reducer(state: AppState, action: Action): AppState {
       document.documentElement.classList.add(action.payload);
       return { ...state, theme: action.payload };
     case 'LOGIN': {
+      // The auth listener re-dispatches LOGIN for the same session; keep an admin role that the server
+      // confirmed (an admin who is only in the database allowlist is not recognised by toAppUser alone)
+      let user = action.payload;
+      if (state.currentUser?.id === user.id && state.currentUser.role === 'admin' && user.role !== 'admin') {
+        user = { ...user, role: 'admin' };
+      }
       // Load user preferences if they exist
-      const userPrefs = action.payload.preferences || state.preferences;
+      const userPrefs = user.preferences || state.preferences;
       localStorage.setItem('user_preferences', JSON.stringify(userPrefs));
       document.documentElement.lang = userPrefs.language;
       document.documentElement.dir = userPrefs.language === 'ar' ? 'rtl' : 'ltr';
       return { 
         ...state, 
-        currentUser: action.payload, 
+        currentUser: user, 
         isAuthenticated: true,
         authReady: true,
         lang: userPrefs.language,
@@ -146,6 +153,7 @@ interface AppContextType {
   setLang: (lang: Lang) => void;
   setTheme: (theme: Theme) => void;
   login: (email: string, password: string) => Promise<SignInResult>;
+  verifyOtp: (email: string, code: string) => Promise<OtpResult>;
   logout: () => void;
   updateApplicationStatus: (appId: string, status: ApplicationStatus, note?: string) => void;
   addApplication: (app: Application) => void;
@@ -175,7 +183,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (session?.user?.email_confirmed_at && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
-        dispatch({ type: 'LOGIN', payload: toAppUser(session.user) });
+        const appUser = toAppUser(session.user);
+        // Admins only count as signed in after the emailed one-time code (step 2). A password-only session
+        // (for example one left over from an earlier visit) is ignored and dropped, so it cannot open /admin.
+        if (appUser.role === 'admin' && !usedEmailOtp(session.access_token)) {
+          if (event === 'INITIAL_SESSION') setTimeout(() => void signOutLocal(), 0);
+        } else {
+          dispatch({ type: 'LOGIN', payload: appUser });
+        }
       }
       if (event === 'INITIAL_SESSION') dispatch({ type: 'AUTH_READY' });
     });
@@ -188,6 +203,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<SignInResult> => {
     const result = await signInWithEmail(email, password);
+    // Admins get { otpRequired } here and are logged in only by verifyOtp
+    if (result.ok && 'user' in result) dispatch({ type: 'LOGIN', payload: result.user });
+    return result;
+  }, []);
+
+  const verifyOtp = useCallback(async (email: string, code: string): Promise<OtpResult> => {
+    const result = await verifyAdminOtp(email, code);
     if (result.ok) dispatch({ type: 'LOGIN', payload: result.user });
     return result;
   }, []);
@@ -207,7 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{ 
-      state, setLang, setTheme, login, logout, 
+      state, setLang, setTheme, login, verifyOtp, logout, 
       updateApplicationStatus, addApplication, markNotificationRead,
       setPreferences, markWelcomeSeen, t 
     }}>

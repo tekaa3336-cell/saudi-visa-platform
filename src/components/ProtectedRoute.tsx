@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useApp } from '../store';
 import { isAdminUser } from '../config/admin';
 
@@ -11,6 +11,7 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
   const { state, t } = useApp();
+  const location = useLocation();
 
   // Wait for the saved session to be restored, otherwise a page refresh on /admin would bounce to /login
   if (!state.authReady) {
@@ -25,7 +26,7 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
   }
 
   if (!state.isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   if (requireAdmin && !isAdminUser(state.currentUser)) {
