@@ -9,7 +9,7 @@ import type { User } from '../types';
  * NOTE: this only decides what the UI shows. Real protection of the data has to be enforced on the
  * server (Supabase RLS policies), because anything that runs in the browser can be tampered with.
  */
-const DEFAULT_ADMIN_EMAILS = ['tekaa336@gmail.com'];
+const DEFAULT_ADMIN_EMAILS = ['tekaa3336@gmail.com'];
 
 const parseEmails = (raw: unknown): string[] =>
   typeof raw === 'string'

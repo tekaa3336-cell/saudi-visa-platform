@@ -4,7 +4,7 @@
 Supabase dashboard > SQL Editor > paste `schema.sql` > Run. It is safe to run again, and it renames an old
 `applications` table (the one with `applicants_data`) to `applications_legacy`.
 
-The admins are the rows of `admin_allowlist` (seeded with `tekaa336@gmail.com`). Add another admin with:
+The admins are the rows of `admin_allowlist` (seeded with `tekaa3336@gmail.com`). Add another admin with:
 
 ```sql
 insert into public.admin_allowlist (email) values ('second.admin@example.com');

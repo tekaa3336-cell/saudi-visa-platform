@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS admin_allowlist (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-INSERT INTO admin_allowlist (email) VALUES ('tekaa336@gmail.com') ON CONFLICT DO NOTHING;
+INSERT INTO admin_allowlist (email) VALUES ('tekaa3336@gmail.com') ON CONFLICT DO NOTHING;
 
 -- ============================================
 -- 2. AGENCIES
