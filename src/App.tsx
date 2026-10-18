@@ -12,6 +12,7 @@ import { LoginPage, RegisterPage } from './pages/Auth';
 import { CustomerDashboard, AgencyDashboard } from './pages/Dashboard';
 import { FAQPage, ContactPage, PrivacyPage, TermsPage, AgencyInfoPage, ComingSoonPage } from './pages/StaticPages';
 import AdminDashboard from './pages/AdminDashboard';
+import ResubmitApplication from './pages/ResubmitApplication';
 
 function ServiceDetailWrapper() {
   const { serviceId } = useParams<{ serviceId: string }>();
@@ -28,7 +29,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/services" element={<ServicesCatalog />} />
             <Route path="/services/:serviceId" element={<ServiceDetailWrapper />} />
-            <Route path="/apply/:serviceId" element={<ApplicationWizard />} />
+            <Route path="/apply/:serviceId" element={<ProtectedRoute><ApplicationWizard /></ProtectedRoute>} />
             <Route path="/track" element={<TrackerPage />} />
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/contact" element={<ContactPage />} />
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/dashboard" element={<CustomerDashboard />} />
+            <Route path="/applications/:id/resubmit" element={<ProtectedRoute><ResubmitApplication /></ProtectedRoute>} />
             <Route path="/agency" element={<AgencyDashboard />} />
             <Route path="/admin" element={
               <ProtectedRoute requireAdmin>

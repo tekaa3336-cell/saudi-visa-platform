@@ -1,12 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../store';
 import { SERVICES, getStatusLabel } from '../data';
 import { Card, Button, Badge, StatusBadge, Modal } from '../components/Layout';
 import {
   ShieldCheck, ClipboardList, Inbox, CheckCircle2, Users, Search, Settings,
-  MessageSquare, AlertCircle, FileText, Phone, Mail,
+  MessageSquare, AlertCircle, FileText, Phone, Mail, RefreshCw, Eye,
 } from 'lucide-react';
 import type { Application, ApplicationStatus } from '../types';
+import { getDocumentUrl, listAllApplications, setApplicationStatus, subscribeToApplications } from '../lib/applicationsApi';
 import {
   FILTER_LABELS, FILTER_ORDER, computeStats, countByFilter, deriveCustomers,
   filterApplications, filterCustomers, getNextStatuses, validateStatusChange,
@@ -26,9 +27,45 @@ const formatDateTime = (iso: string) => {
 };
 
 export default function AdminDashboard() {
-  const { state, t, updateApplicationStatus } = useApp();
+  const { state, t } = useApp();
   const lang = state.lang;
-  const applications = state.applications;
+
+  // Live data from Supabase (RLS only returns rows to a verified admin session)
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const mounted = useRef(true);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    const res = await listAllApplications();
+    if (!mounted.current) return;
+    if (res.ok) {
+      setApplications(res.data);
+      setLoadError('');
+    } else {
+      setLoadError(t(res.message.ar, res.message.en));
+    }
+    setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    // Refresh when any application changes (new submission, status change by another admin, resubmission)
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeToApplications(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void load(true), 400);
+    });
+    return () => {
+      mounted.current = false;
+      clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [load]);
 
   const [tab, setTab] = useState<Tab>('requests');
   const [filter, setFilter] = useState<AdminFilter>('all');
@@ -61,8 +98,8 @@ export default function AdminDashboard() {
 
   const closeApp = () => setSelectedId(null);
 
-  const handleSave = () => {
-    if (!selectedApp) return;
+  const handleSave = async () => {
+    if (!selectedApp || saving) return;
     setFlash('');
 
     const check = validateStatusChange(newStatus, note);
@@ -75,16 +112,30 @@ export default function AdminDashboard() {
       return;
     }
 
-    updateApplicationStatus(selectedApp.id, newStatus, note.trim() || undefined);
+    setSaving(true);
+    const res = await setApplicationStatus(selectedApp.id, newStatus, note.trim());
+    setSaving(false);
+    if (!res.ok) {
+      setFormError(t(res.message.ar, res.message.en));
+      return;
+    }
+
     setFormError('');
     setNewStatus('');
     setNote('');
+    await load(true); // pick up the saved status and history from the database
     setFlash(
       t(
-        'تم تحديث الحالة، والملاحظة ستظهر للعميل في صفحة تتبع الطلب',
-        'Status updated. The note will be visible to the customer on the tracking page',
+        'تم حفظ الحالة في قاعدة البيانات، والملاحظة ستظهر للعميل في حسابه',
+        'Status saved to the database. The note will be visible to the customer in their account',
       ),
     );
+  };
+
+  const openDocument = async (storageKey: string) => {
+    const res = await getDocumentUrl(storageKey);
+    if (res.ok) window.open(res.data, '_blank', 'noopener,noreferrer');
+    else setFormError(t(res.message.ar, res.message.en));
   };
 
   const serviceName = (app: Application) =>
@@ -104,7 +155,20 @@ export default function AdminDashboard() {
             {state.currentUser?.email ? <span dir="ltr"> · {state.currentUser.email}</span> : null}
           </p>
         </div>
+        <Button size="sm" variant="outline" className="ms-auto shrink-0" onClick={() => void load()} disabled={loading}>
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />{t('تحديث', 'Refresh')}
+        </Button>
       </div>
+
+      {loadError && (
+        <div role="alert" className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-400">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <p>{loadError}</p>
+            <p className="text-xs mt-1 opacity-80">{t('تأكد من تشغيل schema.sql في Supabase ومن تسجيل الدخول برمز التحقق.', 'Make sure schema.sql was run in Supabase and that you signed in with the verification code.')}</p>
+          </div>
+        </div>
+      )}
 
       {/* Quick stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -166,7 +230,9 @@ export default function AdminDashboard() {
       {/* Requests */}
       {tab === 'requests' && (
         <>
-          {visibleApps.length === 0 ? (
+          {loading && applications.length === 0 ? (
+            <EmptyState text={t('جارٍ تحميل الطلبات...', 'Loading applications...')} />
+          ) : visibleApps.length === 0 ? (
             <EmptyState text={applications.length === 0
               ? t('لا توجد طلبات مقدّمة بعد', 'No applications submitted yet')
               : t('لا توجد طلبات مطابقة للتصفية', 'No applications match the filter')} />
@@ -295,9 +361,14 @@ export default function AdminDashboard() {
                   {selectedApp.documents.map(d => (
                     <div key={d.id} className="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded">
                       <span className="flex items-center gap-1.5 min-w-0"><FileText size={12} className="shrink-0 text-slate-400" /><span className="truncate">{d.fileName}</span></span>
-                      <Badge color={d.status === 'approved' ? 'success' : d.status === 'rejected' ? 'error' : 'warning'}>
-                        {d.status === 'approved' ? t('مقبول', 'Approved') : d.status === 'rejected' ? t('مرفوض', 'Rejected') : t('قيد المراجعة', 'Pending')}
-                      </Badge>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        <button type="button" onClick={() => void openDocument(d.storageKey)} className="inline-flex items-center gap-1 text-emerald-600 hover:underline">
+                          <Eye size={12} />{t('عرض', 'View')}
+                        </button>
+                        <Badge color={d.status === 'approved' ? 'success' : d.status === 'rejected' ? 'error' : 'warning'}>
+                          {d.status === 'approved' ? t('مقبول', 'Approved') : d.status === 'rejected' ? t('مرفوض', 'Rejected') : t('قيد المراجعة', 'Pending')}
+                        </Badge>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -351,8 +422,8 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  <Button className="w-full" onClick={handleSave} disabled={!newStatus}>
-                    <MessageSquare size={14} />{t('حفظ التغيير', 'Save change')}
+                  <Button className="w-full" onClick={() => void handleSave()} disabled={!newStatus || saving}>
+                    <MessageSquare size={14} />{saving ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ التغيير', 'Save change')}
                   </Button>
                 </div>
               )}

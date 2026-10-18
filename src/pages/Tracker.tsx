@@ -4,6 +4,8 @@ import { Card, Button, Input, StatusBadge } from '../components/Layout';
 import { Search, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import { getStatusLabel } from '../data';
 import { convertCurrency, formatCurrency } from '../preferences';
+import { trackByReference } from '../lib/applicationsApi';
+import type { Application } from '../types';
 
 export default function TrackerPage() {
   const { state, t } = useApp();
@@ -11,9 +13,38 @@ export default function TrackerPage() {
   const currency = state.preferences.currency;
   const [refCode, setRefCode] = useState('');
   const [searched, setSearched] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  // Result from Supabase: status and dates only (the database never returns personal data or admin notes here)
+  const [remoteApp, setRemoteApp] = useState<Application | null>(null);
 
-  const handleSearch = () => setSearched(true);
-  const foundApp = state.applications.find(a => a.referenceCode === refCode.trim());
+  const handleSearch = async () => {
+    const code = refCode.trim();
+    setLookupError('');
+    setRemoteApp(null);
+    if (!code) return;
+    setSearching(true);
+    const res = await trackByReference(code);
+    setSearching(false);
+    setSearched(true);
+    if (!res.ok) { setLookupError(t(res.message.ar, res.message.en)); return; }
+    const d = res.data;
+    if (d) {
+      setRemoteApp({
+        id: d.referenceCode, referenceCode: d.referenceCode, serviceType: d.serviceId, userId: '', applicants: [],
+        status: d.status, paymentStatus: 'not_due', documents: [],
+        statusHistory: d.history.map((h, i) => ({
+          id: `${d.referenceCode}-${i}`, applicationId: d.referenceCode, fromStatus: null, toStatus: h.toStatus,
+          actorId: '', actorRole: 'customer' as const, timestamp: h.createdAt,
+        })),
+        totalCost: 0, serviceFee: 0, governmentFee: 0, createdAt: d.createdAt, updatedAt: d.updatedAt,
+      });
+    }
+  };
+  // Built-in demo codes still work; real codes are looked up in Supabase
+  const demoApp = state.applications.find(a => a.referenceCode === refCode.trim());
+  const isRemote = !demoApp && !!remoteApp;
+  const foundApp = demoApp ?? remoteApp ?? undefined;
   const found = !!foundApp;
 
   const statusSteps = ['submitted', 'document_review', 'processing', 'verified', 'completed'];
@@ -29,13 +60,15 @@ export default function TrackerPage() {
 
       <Card className="p-4 mb-6">
         <div className="flex gap-2">
-          <Input placeholder={t('رقم المرجع', 'Reference code')} value={refCode} onChange={e => setRefCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} />
-          <Button onClick={handleSearch}><Search size={14} />{t('بحث', 'Search')}</Button>
+          <Input placeholder={t('رقم المرجع', 'Reference code')} value={refCode} onChange={e => setRefCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && void handleSearch()} />
+          <Button onClick={() => void handleSearch()} disabled={searching}><Search size={14} />{searching ? t('جارٍ البحث...', 'Searching...') : t('بحث', 'Search')}</Button>
         </div>
         <p className="text-[10px] text-slate-400 mt-2">{t('💡 للتجربة: VSA-2024-001 أو VSA-2024-002', '💡 Demo: VSA-2024-001 or VSA-2024-002')}</p>
       </Card>
 
-      {searched && !found && (
+      {lookupError && <p role="alert" className="text-xs text-red-600 text-center mb-4">{lookupError}</p>}
+
+      {searched && !found && !lookupError && (
         <Card className="p-6 text-center">
           <AlertCircle size={32} className="mx-auto text-amber-500 mb-2" />
           <h3 className="font-bold text-slate-900 dark:text-white">{t('لم يتم العثور', 'Not Found')}</h3>
@@ -74,7 +107,7 @@ export default function TrackerPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          {!isRemote && <Card className="p-4">
             <h4 className="font-semibold text-xs text-slate-900 dark:text-white mb-3">{t('التفاصيل', 'Details')}</h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div><span className="text-slate-500">{t('الخدمة', 'Service')}:</span> <span className="font-medium">{foundApp.serviceType.replace('_', ' ')}</span></div>
@@ -82,7 +115,7 @@ export default function TrackerPage() {
               <div><span className="text-slate-500">{t('التاريخ', 'Date')}:</span> <span className="font-medium">{foundApp.createdAt}</span></div>
               <div><span className="text-slate-500">{t('التكلفة', 'Cost')}:</span> <span className="font-medium">{formatCurrency(convertCurrency(foundApp.totalCost, currency), currency, lang)}</span></div>
             </div>
-          </Card>
+          </Card>}
 
           <Card className="p-4">
             <h4 className="font-semibold text-xs text-slate-900 dark:text-white mb-3">{t('السجل', 'Timeline')}</h4>
@@ -100,7 +133,7 @@ export default function TrackerPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          {!isRemote && <Card className="p-4">
             <h4 className="font-semibold text-xs text-slate-900 dark:text-white mb-2">{t('المتقدمون', 'Applicants')}</h4>
             {foundApp.applicants.map(a => (
               <div key={a.id} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded text-xs">
@@ -108,7 +141,10 @@ export default function TrackerPage() {
                 <div className="flex items-center gap-1 text-[10px] text-slate-500"><FileText size={10} />{foundApp.documents.filter(d => d.applicantId === a.id).length}</div>
               </div>
             ))}
-          </Card>
+          </Card>}
+          {isRemote && (
+            <p className="text-[11px] text-slate-500 text-center">{t('لحماية الخصوصية تُعرض الحالة والتواريخ فقط. سجّل الدخول لرؤية تفاصيل طلبك وملاحظات المراجعة.', 'For privacy only the status and dates are shown. Sign in to see your application details and review notes.')}</p>
+          )}
         </div>
       )}
     </div>
