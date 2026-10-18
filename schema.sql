@@ -5,17 +5,12 @@
 -- Safe to run more than once (idempotent). Run it in the Supabase SQL editor.
 --
 -- Security model
---   * Regular users can only READ their own applications (and the rows that belong to them).
+--   * Users can only READ their own applications (and the rows that belong to them).
 --     They cannot insert/update/delete application rows directly: every write goes through the
 --     SECURITY DEFINER functions below, which validate the input and the caller.
---   * An ADMIN is an account with a CONFIRMED email that is in public.admin_allowlist
---     (or has profiles.role = 'admin').
---   * Admin data access additionally requires that the session was created with an email
---     one-time code (JWT claim `amr` contains `otp` or `magiclink`). A session created with the
---     password alone gets NO admin access, even if someone bypasses the web UI.
---     Known limit: the server cannot prove that the password step happened in the same login
---     (that second factor is enforced by the web UI). For a server-enforced second factor use
---     Supabase MFA (TOTP) and require aal2 here.
+--   * There are no administrator accounts, roles or policies in this schema. Anything that is not
+--     granted to the owner of a row (reviewing applications, changing statuses, managing the
+--     catalogue) is done from the Supabase dashboard / service role, which bypasses RLS.
 -- ============================================================================
 
 -- ============================================
@@ -46,21 +41,12 @@ CREATE TABLE IF NOT EXISTS profiles (
   phone TEXT,
   nationality TEXT,
   country_of_residence TEXT,
-  role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'agency_owner', 'agency_staff', 'admin')),
+  role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'agency_owner', 'agency_staff')),
   agency_id UUID,
   is_verified BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Emails allowed to be administrators. Nobody can read or write this table through the API:
--- manage it from the SQL editor, e.g.  INSERT INTO public.admin_allowlist (email) VALUES ('name@example.com');
-CREATE TABLE IF NOT EXISTS admin_allowlist (
-  email TEXT PRIMARY KEY,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-INSERT INTO admin_allowlist (email) VALUES ('tekaa336@gmail.com') ON CONFLICT DO NOTHING;
 
 -- ============================================
 -- 2. AGENCIES
@@ -290,46 +276,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- 11. HELPER FUNCTIONS (used by policies and RPCs)
 -- ============================================
 
--- Confirmed email + (in the allowlist OR profile role = 'admin')
-CREATE OR REPLACE FUNCTION public.is_admin_account()
-RETURNS BOOLEAN
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-  SELECT COALESCE((
-    SELECT u.email_confirmed_at IS NOT NULL AND (
-      EXISTS (SELECT 1 FROM public.admin_allowlist a WHERE lower(a.email) = lower(u.email))
-      OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id AND p.role = 'admin')
-    )
-    FROM auth.users u
-    WHERE u.id = auth.uid()
-  ), false)
-$$;
-
--- The current session was created with an email one-time code (not with the password alone)
-CREATE OR REPLACE FUNCTION public.session_used_email_otp()
-RETURNS BOOLEAN
-LANGUAGE sql STABLE
-SET search_path = public, auth
-AS $$
-  SELECT COALESCE(
-    jsonb_path_exists(
-      COALESCE(auth.jwt() -> 'amr', '[]'::jsonb),
-      '$[*] ? (@.method == "otp" || @.method == "magiclink")'
-    ),
-    false
-  )
-$$;
-
--- Verified admin: confirmed admin account AND signed in with an email one-time code
-CREATE OR REPLACE FUNCTION public.is_admin_session()
-RETURNS BOOLEAN
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-  SELECT public.is_admin_account() AND public.session_used_email_otp()
-$$;
-
 CREATE OR REPLACE FUNCTION public.is_confirmed_user()
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -346,27 +292,6 @@ AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.applications a
     WHERE a.id = p_application_id AND a.user_id = auth.uid()
-  )
-$$;
-
--- Same transitions as STATUS_TRANSITIONS in src/types.ts
-CREATE OR REPLACE FUNCTION public.is_valid_status_transition(p_from TEXT, p_to TEXT)
-RETURNS BOOLEAN
-LANGUAGE sql IMMUTABLE
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM (VALUES
-      ('draft', 'submitted'), ('draft', 'cancelled'),
-      ('submitted', 'document_review'), ('submitted', 'needs_revision'), ('submitted', 'rejected'), ('submitted', 'cancelled'),
-      ('document_review', 'processing'), ('document_review', 'submitted'), ('document_review', 'needs_revision'), ('document_review', 'rejected'),
-      ('needs_revision', 'submitted'), ('needs_revision', 'document_review'), ('needs_revision', 'rejected'), ('needs_revision', 'cancelled'),
-      ('processing', 'verified'), ('processing', 'needs_revision'), ('processing', 'rejected'),
-      ('verified', 'approved_for_payment'), ('verified', 'processing'),
-      ('approved_for_payment', 'payment_pending'), ('approved_for_payment', 'completed'),
-      ('payment_pending', 'completed'), ('payment_pending', 'cancelled'),
-      ('rejected', 'submitted'),
-      ('cancelled', 'draft')
-    ) AS t(f, t) WHERE t.f = p_from AND t.t = p_to
   )
 $$;
 
@@ -471,7 +396,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Users may edit their own profile, but never their role, email, agency or verification flag
--- (the "update own profile" policy alone would let anyone make themselves an admin)
+-- (the "update own profile" policy alone would let anyone change their own role)
 CREATE OR REPLACE FUNCTION public.guard_profile_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -500,7 +425,6 @@ CREATE TRIGGER guard_profile_update
 -- 13. ROW LEVEL SECURITY (RLS)
 -- ============================================
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE admin_allowlist ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agencies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE services ENABLE ROW LEVEL SECURITY;
 ALTER TABLE service_requirements ENABLE ROW LEVEL SECURITY;
@@ -519,73 +443,43 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 -- Remove policies from earlier versions of this file (some were recursive or too broad)
 DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
-DROP POLICY IF EXISTS "Admin can view all profiles" ON profiles;
 DROP POLICY IF EXISTS "Users can view own applications" ON applications;
 DROP POLICY IF EXISTS "Agency can view own applications" ON applications;
-DROP POLICY IF EXISTS "Admin can view all applications" ON applications;
 DROP POLICY IF EXISTS "Users can view own applicants" ON applicants;
-DROP POLICY IF EXISTS "Admin can view all applicants" ON applicants;
 DROP POLICY IF EXISTS "Users can view own documents" ON documents;
-DROP POLICY IF EXISTS "Admin can view all documents" ON documents;
 DROP POLICY IF EXISTS "Users can view own notifications" ON notifications;
-DROP POLICY IF EXISTS "Admin can view audit logs" ON audit_logs;
 DROP POLICY IF EXISTS "Users can insert own applications" ON applications;
 DROP POLICY IF EXISTS "Users can update own applications" ON applications;
 
 -- profiles
 DROP POLICY IF EXISTS "profiles: read own" ON profiles;
 DROP POLICY IF EXISTS "profiles: update own" ON profiles;
-DROP POLICY IF EXISTS "profiles: admin read all" ON profiles;
 CREATE POLICY "profiles: read own" ON profiles
   FOR SELECT TO authenticated USING (id = auth.uid());
 CREATE POLICY "profiles: update own" ON profiles
   FOR UPDATE TO authenticated USING (id = auth.uid()) WITH CHECK (id = auth.uid());
-CREATE POLICY "profiles: admin read all" ON profiles
-  FOR SELECT TO authenticated USING ((SELECT public.is_admin_session()));
 
--- agencies (admin only for now)
-DROP POLICY IF EXISTS "agencies: admin all" ON agencies;
-CREATE POLICY "agencies: admin all" ON agencies
-  FOR ALL TO authenticated USING ((SELECT public.is_admin_session())) WITH CHECK ((SELECT public.is_admin_session()));
+-- agencies, verification records, payments and audit logs: no policies on purpose. They are not
+-- reachable through the public API; use the Supabase dashboard / service role.
 
--- applications: owners read their own rows; verified admins have full access.
+-- applications: owners read their own rows.
 -- There is deliberately NO insert/update/delete policy for regular users: they write through the RPCs.
 DROP POLICY IF EXISTS "applications: read own" ON applications;
-DROP POLICY IF EXISTS "applications: admin all" ON applications;
 CREATE POLICY "applications: read own" ON applications
   FOR SELECT TO authenticated USING (user_id = auth.uid());
-CREATE POLICY "applications: admin all" ON applications
-  FOR ALL TO authenticated USING ((SELECT public.is_admin_session())) WITH CHECK ((SELECT public.is_admin_session()));
 
 -- applicants / documents / status_events: reachable only through an application the user owns
 DROP POLICY IF EXISTS "applicants: read own" ON applicants;
-DROP POLICY IF EXISTS "applicants: admin all" ON applicants;
 CREATE POLICY "applicants: read own" ON applicants
   FOR SELECT TO authenticated USING (public.owns_application(application_id));
-CREATE POLICY "applicants: admin all" ON applicants
-  FOR ALL TO authenticated USING ((SELECT public.is_admin_session())) WITH CHECK ((SELECT public.is_admin_session()));
 
 DROP POLICY IF EXISTS "documents: read own" ON documents;
-DROP POLICY IF EXISTS "documents: admin all" ON documents;
 CREATE POLICY "documents: read own" ON documents
   FOR SELECT TO authenticated USING (public.owns_application(application_id));
-CREATE POLICY "documents: admin all" ON documents
-  FOR ALL TO authenticated USING ((SELECT public.is_admin_session())) WITH CHECK ((SELECT public.is_admin_session()));
 
 DROP POLICY IF EXISTS "status_events: read own" ON status_events;
-DROP POLICY IF EXISTS "status_events: admin all" ON status_events;
 CREATE POLICY "status_events: read own" ON status_events
   FOR SELECT TO authenticated USING (public.owns_application(application_id));
-CREATE POLICY "status_events: admin all" ON status_events
-  FOR ALL TO authenticated USING ((SELECT public.is_admin_session())) WITH CHECK ((SELECT public.is_admin_session()));
-
--- verification records and payments: admin only
-DROP POLICY IF EXISTS "verification_records: admin all" ON verification_records;
-CREATE POLICY "verification_records: admin all" ON verification_records
-  FOR ALL TO authenticated USING ((SELECT public.is_admin_session())) WITH CHECK ((SELECT public.is_admin_session()));
-DROP POLICY IF EXISTS "payments: admin all" ON payments;
-CREATE POLICY "payments: admin all" ON payments
-  FOR ALL TO authenticated USING ((SELECT public.is_admin_session())) WITH CHECK ((SELECT public.is_admin_session()));
 
 -- notifications: users see (and mark as read) only their own
 DROP POLICY IF EXISTS "notifications: read own" ON notifications;
@@ -595,18 +489,10 @@ CREATE POLICY "notifications: read own" ON notifications
 CREATE POLICY "notifications: mark own read" ON notifications
   FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
--- audit logs: admin read only (rows are written by trusted code)
-DROP POLICY IF EXISTS "audit_logs: admin read" ON audit_logs;
-CREATE POLICY "audit_logs: admin read" ON audit_logs
-  FOR SELECT TO authenticated USING ((SELECT public.is_admin_session()));
-
--- contact form: anyone can send a message, only admins can read or manage them
+-- contact form: anyone can send a message; nobody can read them through the API
 DROP POLICY IF EXISTS "contact_inquiries: anyone can send" ON contact_inquiries;
-DROP POLICY IF EXISTS "contact_inquiries: admin all" ON contact_inquiries;
 CREATE POLICY "contact_inquiries: anyone can send" ON contact_inquiries
   FOR INSERT TO anon, authenticated WITH CHECK (status = 'new');
-CREATE POLICY "contact_inquiries: admin all" ON contact_inquiries
-  FOR ALL TO authenticated USING ((SELECT public.is_admin_session())) WITH CHECK ((SELECT public.is_admin_session()));
 
 -- public catalogue data: readable by everyone, writable only from the dashboard / service role
 DROP POLICY IF EXISTS "services: public read" ON services;
@@ -618,12 +504,9 @@ CREATE POLICY "wholesale_tiers: public read" ON wholesale_tiers FOR SELECT TO an
 DROP POLICY IF EXISTS "faqs: public read" ON faqs;
 CREATE POLICY "faqs: public read" ON faqs FOR SELECT TO anon, authenticated USING (is_active);
 
--- admin_allowlist: no policies on purpose (nobody can read or write it through the API)
-
 -- Belt and braces: the anonymous role has no business touching these tables
-REVOKE ALL ON profiles, admin_allowlist, agencies, applications, applicants, documents,
+REVOKE ALL ON profiles, agencies, applications, applicants, documents,
               status_events, verification_records, payments, notifications, audit_logs FROM anon;
-REVOKE ALL ON admin_allowlist FROM authenticated;
 GRANT INSERT ON contact_inquiries TO anon;
 
 -- ============================================
@@ -731,47 +614,7 @@ BEGIN
 END;
 $$;
 
--- 14.2 Admin changes the status and (optionally) leaves a note for the customer
-CREATE OR REPLACE FUNCTION public.admin_set_status(
-  p_application_id UUID,
-  p_new_status TEXT,
-  p_note TEXT DEFAULT NULL
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-DECLARE
-  v_uid UUID := auth.uid();
-  v_old TEXT;
-  v_note TEXT := NULLIF(trim(COALESCE(p_note, '')), '');
-BEGIN
-  IF NOT public.is_admin_session() THEN RAISE EXCEPTION 'FORBIDDEN' USING ERRCODE = '42501'; END IF;
-
-  SELECT a.status INTO v_old FROM public.applications a WHERE a.id = p_application_id FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND' USING ERRCODE = 'P0002'; END IF;
-
-  IF NOT public.is_valid_status_transition(v_old, p_new_status) THEN
-    RAISE EXCEPTION 'INVALID_TRANSITION' USING ERRCODE = '22023';
-  END IF;
-  IF v_note IS NOT NULL AND length(v_note) > 500 THEN
-    RAISE EXCEPTION 'NOTE_TOO_LONG' USING ERRCODE = '22023';
-  END IF;
-  IF p_new_status IN ('rejected', 'needs_revision') AND (v_note IS NULL OR length(v_note) < 5) THEN
-    RAISE EXCEPTION 'NOTE_REQUIRED' USING ERRCODE = '22023';
-  END IF;
-
-  PERFORM public.ensure_profile(v_uid);
-
-  UPDATE public.applications SET status = p_new_status WHERE id = p_application_id;
-  INSERT INTO public.status_events (application_id, from_status, to_status, actor_id, actor_role, note)
-  VALUES (p_application_id, v_old, p_new_status, v_uid, 'admin', v_note);
-
-  RETURN jsonb_build_object('id', p_application_id, 'status', p_new_status);
-END;
-$$;
-
--- 14.3 The owner fixes an application that is in "needs_revision" and sends it back for review.
+-- 14.2 The owner fixes an application that is in "needs_revision" and sends it back for review.
 -- p_applicants: [{id, fullName, ...}] (ids of existing applicants of this application)
 -- p_documents:  [{applicant_id, document_type, file_name, storage_key, mime_type, file_size}] (replaces same-type documents)
 CREATE OR REPLACE FUNCTION public.resubmit_application(
@@ -870,7 +713,7 @@ BEGIN
 END;
 $$;
 
--- 14.4 Public tracking by reference code. Returns status and dates only: no personal data and no admin notes.
+-- 14.3 Public tracking by reference code. Returns status and dates only: no personal data and no review notes.
 CREATE OR REPLACE FUNCTION public.track_application(p_reference TEXT)
 RETURNS JSONB
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -892,32 +735,24 @@ AS $$
 $$;
 
 -- Function privileges: new functions are executable by everyone by default; lock them down
-REVOKE ALL ON FUNCTION public.is_admin_account() FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.session_used_email_otp() FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.is_admin_session() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.is_confirmed_user() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.owns_application(UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ensure_profile(UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.validate_applicant(JSONB) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.submit_application(TEXT, JSONB, JSONB, NUMERIC, NUMERIC) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.admin_set_status(UUID, TEXT, TEXT) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.resubmit_application(UUID, JSONB, JSONB, TEXT) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.track_application(TEXT) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION public.is_admin_account() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.session_used_email_otp() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.is_admin_session() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_confirmed_user() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.owns_application(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_application(TEXT, JSONB, JSONB, NUMERIC, NUMERIC) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.admin_set_status(UUID, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.resubmit_application(UUID, JSONB, JSONB, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.track_application(TEXT) TO anon, authenticated;
 
 -- ============================================
 -- 15. STORAGE (private bucket for passports and other documents)
 -- ============================================
--- Files live under <user id>/... . The bucket is PRIVATE: no public URLs. Owners and verified admins
+-- Files live under <user id>/... . The bucket is PRIVATE: no public URLs. Owners
 -- read through short-lived signed URLs. (Earlier versions of the web app created this bucket as public:
 -- this statement makes it private.)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -929,10 +764,8 @@ ON CONFLICT (id) DO UPDATE
 
 DROP POLICY IF EXISTS "Users can upload documents" ON storage.objects;
 DROP POLICY IF EXISTS "Users can read own documents" ON storage.objects;
-DROP POLICY IF EXISTS "Admin can read all documents" ON storage.objects;
 DROP POLICY IF EXISTS "visa-documents: upload to own folder" ON storage.objects;
 DROP POLICY IF EXISTS "visa-documents: read own" ON storage.objects;
-DROP POLICY IF EXISTS "visa-documents: admin read all" ON storage.objects;
 
 CREATE POLICY "visa-documents: upload to own folder" ON storage.objects
   FOR INSERT TO authenticated
@@ -942,9 +775,6 @@ CREATE POLICY "visa-documents: read own" ON storage.objects
   FOR SELECT TO authenticated
   USING (bucket_id = 'visa-documents' AND (storage.foldername(name))[1] = auth.uid()::text);
 
-CREATE POLICY "visa-documents: admin read all" ON storage.objects
-  FOR SELECT TO authenticated
-  USING (bucket_id = 'visa-documents' AND (SELECT public.is_admin_session()));
 
 -- ============================================
 -- 16. INDEXES
@@ -960,21 +790,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_r
 CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
 
 -- ============================================
--- 17. REALTIME (the admin dashboard refreshes when an application changes)
--- ============================================
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
-     AND NOT EXISTS (
-       SELECT 1 FROM pg_publication_tables
-       WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'applications'
-     ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.applications;
-  END IF;
-END $$;
-
--- ============================================
--- 18. BACKFILL: profiles for accounts that existed before the trigger above
+-- 17. BACKFILL: profiles for accounts that existed before the trigger above
 -- ============================================
 INSERT INTO public.profiles (id, email, full_name, role)
 SELECT u.id,
@@ -983,3 +799,47 @@ SELECT u.id,
        'customer'
 FROM auth.users u
 ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- 18. CLEANUP of the earlier admin feature (safe on a database that never had it)
+--     Removes the admin allowlist, admin functions, admin policies and the 'admin' role value.
+-- ============================================
+DROP POLICY IF EXISTS "Admin can view all profiles" ON profiles;
+DROP POLICY IF EXISTS "Admin can view all applications" ON applications;
+DROP POLICY IF EXISTS "Admin can view all applicants" ON applicants;
+DROP POLICY IF EXISTS "Admin can view all documents" ON documents;
+DROP POLICY IF EXISTS "Admin can view audit logs" ON audit_logs;
+DROP POLICY IF EXISTS "Admin can read all documents" ON storage.objects;
+DROP POLICY IF EXISTS "profiles: admin read all" ON profiles;
+DROP POLICY IF EXISTS "agencies: admin all" ON agencies;
+DROP POLICY IF EXISTS "applications: admin all" ON applications;
+DROP POLICY IF EXISTS "applicants: admin all" ON applicants;
+DROP POLICY IF EXISTS "documents: admin all" ON documents;
+DROP POLICY IF EXISTS "status_events: admin all" ON status_events;
+DROP POLICY IF EXISTS "verification_records: admin all" ON verification_records;
+DROP POLICY IF EXISTS "payments: admin all" ON payments;
+DROP POLICY IF EXISTS "audit_logs: admin read" ON audit_logs;
+DROP POLICY IF EXISTS "contact_inquiries: admin all" ON contact_inquiries;
+DROP POLICY IF EXISTS "Admin can read all documents" ON storage.objects;
+DROP POLICY IF EXISTS "visa-documents: admin read all" ON storage.objects;
+
+DROP FUNCTION IF EXISTS public.admin_set_status(UUID, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.is_admin_session();
+DROP FUNCTION IF EXISTS public.is_admin_account();
+DROP FUNCTION IF EXISTS public.session_used_email_otp();
+DROP FUNCTION IF EXISTS public.is_valid_status_transition(TEXT, TEXT);
+DROP TABLE IF EXISTS public.admin_allowlist;
+
+UPDATE profiles SET role = 'customer' WHERE role = 'admin';
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+ALTER TABLE profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('customer', 'agency_owner', 'agency_staff'));
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'applications'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE public.applications;
+  END IF;
+END $$;

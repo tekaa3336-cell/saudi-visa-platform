@@ -1,10 +1,8 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import type { Lang, Theme, User, Application, ApplicationStatus, Notification, UserPreferences } from './types';
-import { STATUS_TRANSITIONS } from './types';
+import type { Lang, Theme, User, Application, Notification, UserPreferences } from './types';
 import { MOCK_APPLICATIONS, MOCK_NOTIFICATIONS } from './data';
 import { supabase } from './lib/supabaseClient';
-import { signInWithEmail, verifyAdminOtp, signOutLocal, toAppUser, type SignInResult, type OtpResult } from './lib/auth';
-import { usedEmailOtp } from './lib/session';
+import { signInWithEmail, signOutLocal, toAppUser, type SignInResult } from './lib/auth';
 
 interface AppState {
   lang: Lang;
@@ -25,7 +23,6 @@ type Action =
   | { type: 'LOGIN'; payload: User }
   | { type: 'LOGOUT' }
   | { type: 'AUTH_READY' }
-  | { type: 'UPDATE_STATUS'; payload: { appId: string; status: ApplicationStatus; note?: string } }
   | { type: 'ADD_APP'; payload: Application }
   | { type: 'READ_NOTIF'; payload: string }
   | { type: 'SET_PREFERENCES'; payload: UserPreferences }
@@ -78,12 +75,7 @@ function reducer(state: AppState, action: Action): AppState {
       document.documentElement.classList.add(action.payload);
       return { ...state, theme: action.payload };
     case 'LOGIN': {
-      // The auth listener re-dispatches LOGIN for the same session; keep an admin role that the server
-      // confirmed (an admin who is only in the database allowlist is not recognised by toAppUser alone)
-      let user = action.payload;
-      if (state.currentUser?.id === user.id && state.currentUser.role === 'admin' && user.role !== 'admin') {
-        user = { ...user, role: 'admin' };
-      }
+      const user = action.payload;
       // Load user preferences if they exist
       const userPrefs = user.preferences || state.preferences;
       localStorage.setItem('user_preferences', JSON.stringify(userPrefs));
@@ -103,24 +95,6 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, currentUser: null, isAuthenticated: false, authReady: true };
     case 'AUTH_READY':
       return state.authReady ? state : { ...state, authReady: true };
-    case 'UPDATE_STATUS': {
-      const { appId, status, note } = action.payload;
-      return {
-        ...state,
-        applications: state.applications.map(app => {
-          if (app.id !== appId) return app;
-          if (!STATUS_TRANSITIONS[app.status].includes(status)) return app;
-          return {
-            ...app, status, updatedAt: new Date().toISOString(),
-            statusHistory: [...app.statusHistory, {
-              id: `ev-${Date.now()}`, applicationId: appId, fromStatus: app.status, toStatus: status,
-              actorId: state.currentUser?.id || 'system', actorRole: state.currentUser?.role || 'admin',
-              note, timestamp: new Date().toISOString(),
-            }],
-          };
-        }),
-      };
-    }
     case 'ADD_APP':
       return { ...state, applications: [...state.applications, action.payload] };
     case 'READ_NOTIF':
@@ -153,9 +127,7 @@ interface AppContextType {
   setLang: (lang: Lang) => void;
   setTheme: (theme: Theme) => void;
   login: (email: string, password: string) => Promise<SignInResult>;
-  verifyOtp: (email: string, code: string) => Promise<OtpResult>;
   logout: () => void;
-  updateApplicationStatus: (appId: string, status: ApplicationStatus, note?: string) => void;
   addApplication: (app: Application) => void;
   markNotificationRead: (id: string) => void;
   setPreferences: (prefs: UserPreferences) => void;
@@ -183,14 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (session?.user?.email_confirmed_at && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
-        const appUser = toAppUser(session.user);
-        // Admins only count as signed in after the emailed one-time code (step 2). A password-only session
-        // (for example one left over from an earlier visit) is ignored and dropped, so it cannot open /admin.
-        if (appUser.role === 'admin' && !usedEmailOtp(session.access_token)) {
-          if (event === 'INITIAL_SESSION') setTimeout(() => void signOutLocal(), 0);
-        } else {
-          dispatch({ type: 'LOGIN', payload: appUser });
-        }
+        dispatch({ type: 'LOGIN', payload: toAppUser(session.user) });
       }
       if (event === 'INITIAL_SESSION') dispatch({ type: 'AUTH_READY' });
     });
@@ -203,13 +168,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<SignInResult> => {
     const result = await signInWithEmail(email, password);
-    // Admins get { otpRequired } here and are logged in only by verifyOtp
-    if (result.ok && 'user' in result) dispatch({ type: 'LOGIN', payload: result.user });
-    return result;
-  }, []);
-
-  const verifyOtp = useCallback(async (email: string, code: string): Promise<OtpResult> => {
-    const result = await verifyAdminOtp(email, code);
     if (result.ok) dispatch({ type: 'LOGIN', payload: result.user });
     return result;
   }, []);
@@ -217,9 +175,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     dispatch({ type: 'LOGOUT' });
     void signOutLocal();
-  }, []);
-  const updateApplicationStatus = useCallback((appId: string, status: ApplicationStatus, note?: string) => {
-    dispatch({ type: 'UPDATE_STATUS', payload: { appId, status, note } });
   }, []);
   const addApplication = useCallback((app: Application) => dispatch({ type: 'ADD_APP', payload: app }), []);
   const markNotificationRead = useCallback((id: string) => dispatch({ type: 'READ_NOTIF', payload: id }), []);
@@ -229,8 +184,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{ 
-      state, setLang, setTheme, login, verifyOtp, logout, 
-      updateApplicationStatus, addApplication, markNotificationRead,
+      state, setLang, setTheme, login, logout, 
+      addApplication, markNotificationRead,
       setPreferences, markWelcomeSeen, t 
     }}>
       {children}

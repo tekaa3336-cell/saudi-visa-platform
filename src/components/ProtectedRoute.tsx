@@ -1,19 +1,16 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useApp } from '../store';
-import { isAdminUser } from '../config/admin';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  /** Only admins (confirmed approved email, or role 'admin') can open the page */
-  requireAdmin?: boolean;
 }
 
-export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
+export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { state, t } = useApp();
   const location = useLocation();
 
-  // Wait for the saved session to be restored, otherwise a page refresh on /admin would bounce to /login
+  // Wait for the saved session to be restored, otherwise a page refresh on a protected page would bounce to /login
   if (!state.authReady) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center" role="status" aria-live="polite">
@@ -27,10 +24,6 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
 
   if (!state.isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  }
-
-  if (requireAdmin && !isAdminUser(state.currentUser)) {
-    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

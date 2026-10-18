@@ -123,7 +123,7 @@ export function mapApplication(r: ApplicationRow): Application {
   };
 }
 
-/** The latest admin note that asked the customer for changes (what the applicant must read and fix) */
+/** The latest review note that asked the customer for changes (what the applicant must read and fix) */
 export function latestRevisionNote(app: Pick<Application, 'status' | 'statusHistory'>): StatusEvent | null {
   if (app.status !== 'needs_revision') return null;
   for (let i = app.statusHistory.length - 1; i >= 0; i--) {
@@ -193,13 +193,11 @@ const DB_MESSAGES: Record<string, DbMessage> = {
   AUTH_REQUIRED: { ar: 'سجّل الدخول أولاً للمتابعة', en: 'Please sign in to continue' },
   EMAIL_NOT_CONFIRMED: { ar: 'يجب تأكيد بريدك الإلكتروني أولاً', en: 'Please confirm your email first' },
   FORBIDDEN: {
-    ar: 'ليست لديك صلاحية لتنفيذ هذا الإجراء. سجّل الدخول كمدير عبر رمز التحقق',
-    en: 'You are not allowed to do this. Sign in as an admin with the verification code',
+    ar: 'ليست لديك صلاحية لتنفيذ هذا الإجراء',
+    en: 'You are not allowed to do this',
   },
   NOT_FOUND: { ar: 'الطلب غير موجود', en: 'Application not found' },
   NOT_EDITABLE: { ar: 'لا يمكن تعديل هذا الطلب في حالته الحالية', en: 'This application cannot be edited in its current status' },
-  INVALID_TRANSITION: { ar: 'لا يمكن نقل الطلب إلى هذه الحالة من حالته الحالية', en: 'The application cannot move to that status from its current one' },
-  NOTE_REQUIRED: { ar: 'اكتب ملاحظة للعميل (5 أحرف على الأقل)', en: 'Write a note for the customer (at least 5 characters)' },
   NOTE_TOO_LONG: { ar: 'الملاحظة طويلة جداً (الحد الأقصى 500 حرف)', en: 'The note is too long (max 500 characters)' },
   INVALID_SERVICE: { ar: 'الخدمة غير صالحة', en: 'Invalid service' },
   INVALID_APPLICANTS: { ar: 'بيانات المتقدمين غير صالحة', en: 'Invalid applicant data' },

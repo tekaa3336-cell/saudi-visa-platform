@@ -42,19 +42,6 @@ CREATE POLICY "Users can update own applications"
   TO authenticated
   USING (auth.uid() = user_id);
 
--- Optional: Admin policy (if you have admin role)
--- CREATE POLICY "Admins can view all applications"
---   ON applications
---   FOR SELECT
---   TO authenticated
---   USING (
---     EXISTS (
---       SELECT 1 FROM profiles
---       WHERE profiles.id = auth.uid()
---       AND profiles.role = 'admin'
---     )
---   );
-
 -- Function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

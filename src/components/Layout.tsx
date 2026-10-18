@@ -2,27 +2,24 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES } from '../data';
-import { COUNTRIES, CURRENCIES, getCountryByCode, getCurrencyByCode } from '../preferences';
+import { COUNTRIES, CURRENCIES, getCountryByCode } from '../preferences';
 import { WelcomeModal } from './WelcomeModal';
 import {
-  Menu, X, Globe, Moon, Sun, User, LogOut, Plane, Phone,
+  Menu, X, Moon, Sun, User, LogOut, Plane, Phone,
   MessageCircle, Mail, Home, FileText, BarChart3, HelpCircle,
-  ChevronDown, MapPin, DollarSign, Languages, ShieldCheck
+  ChevronDown, DollarSign, Languages
 } from 'lucide-react';
-import { isAdminUser } from '../config/admin';
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { state, setLang, setTheme, logout, setPreferences, markWelcomeSeen, t } = useApp();
+  const { state, setTheme, logout, setPreferences, markWelcomeSeen, t } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showCountryMenu, setShowCountryMenu] = useState(false);
   const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
   const [showWelcome, setShowWelcome] = useState(!state.hasSeenWelcome);
   const location = useLocation();
   const navigate = useNavigate();
-  const isAdmin = state.isAuthenticated && isAdminUser(state.currentUser);
 
   const selectedCountry = getCountryByCode(state.preferences.country);
-  const selectedCurrency = getCurrencyByCode(state.preferences.currency);
 
   const handleCountryChange = (code: string) => {
     const country = getCountryByCode(code);
@@ -198,17 +195,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="hidden md:flex items-center gap-2">
             {state.isAuthenticated ? (
               <>
-                {isAdmin ? (
-                  <Link to="/admin"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors">
-                    <ShieldCheck size={14} />{t('مدير النظام', 'Admin')}
-                  </Link>
-                ) : (
-                  <Link to={state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <User size={14} />{state.currentUser?.name}
-                  </Link>
-                )}
+              <Link to={state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <User size={14} />{state.currentUser?.name}
+              </Link>
                 <button onClick={handleLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title={t('تسجيل الخروج', 'Logout')}>
                   <LogOut size={14} />
                 </button>
@@ -242,10 +232,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <hr className="my-2 border-slate-200 dark:border-slate-700" />
               {state.isAuthenticated ? (
                 <>
-                  <Link to={isAdmin ? '/admin' : state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
+                  <Link to={state.currentUser?.role === 'agency_owner' ? '/agency' : '/dashboard'}
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                    {isAdmin ? <ShieldCheck size={15} /> : <User size={15} />}{isAdmin ? t('مدير النظام', 'Admin') : t('لوحة التحكم', 'Dashboard')}
+                    <User size={15} />{t('لوحة التحكم', 'Dashboard')}
                   </Link>
                   <button onClick={() => { handleLogout(); setMobileOpen(false); }} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600">
                     <LogOut size={15} />{t('خروج', 'Logout')}
