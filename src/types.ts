@@ -4,7 +4,7 @@
 
 export type Lang = 'ar' | 'en';
 export type Theme = 'light' | 'dark';
-export type UserRole = 'visitor' | 'customer' | 'agency_owner' | 'agency_staff' | 'admin';
+export type UserRole = 'visitor' | 'customer' | 'agency_owner' | 'agency_staff';
 
 export type ServiceType = 
   | 'tourist_visa'
@@ -206,22 +206,6 @@ export interface AuditLog {
   timestamp: string;
   ipAddress?: string;
 }
-
-// Status transition rules
-export const STATUS_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
-  draft: ['submitted', 'cancelled'],
-  submitted: ['document_review', 'needs_revision', 'rejected', 'cancelled'],
-  document_review: ['processing', 'submitted', 'needs_revision', 'rejected'],
-  // The customer fixes the request and resubmits it ('submitted'), or the admin moves it back to review
-  needs_revision: ['submitted', 'document_review', 'rejected', 'cancelled'],
-  processing: ['verified', 'needs_revision', 'rejected'],
-  verified: ['approved_for_payment', 'processing'],
-  approved_for_payment: ['payment_pending', 'completed'],
-  payment_pending: ['completed', 'cancelled'],
-  completed: [],
-  rejected: ['submitted'],
-  cancelled: ['draft'],
-};
 
 export const STATUS_COLORS: Record<ApplicationStatus, string> = {
   draft: 'bg-gray-100 text-gray-700',

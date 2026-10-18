@@ -1,5 +1,5 @@
 // Everything the app reads from / writes to Supabase for visa applications.
-// Reads rely on Row Level Security: a customer only receives their own rows, a verified admin session all rows.
+// Reads rely on Row Level Security: a customer only receives their own rows, 
 // Writes go through database functions (see schema.sql) that validate the data and the status rules.
 
 import { supabase } from './supabaseClient';
@@ -28,13 +28,6 @@ export async function listMyApplications(userId: string): Promise<ApiResult<Appl
   return res.ok ? { ok: true, data: res.data.map(mapApplication) } : res;
 }
 
-/** Every application: only an admin session with a verified email code receives rows (RLS). */
-export async function listAllApplications(): Promise<ApiResult<Application[]>> {
-  const res = await guard<ApplicationRow[]>(() =>
-    supabase.from('applications').select(APPLICATION_SELECT).order('created_at', { ascending: false }));
-  return res.ok ? { ok: true, data: res.data.map(mapApplication) } : res;
-}
-
 export async function getMyApplication(id: string): Promise<ApiResult<Application | null>> {
   const res = await guard<ApplicationRow | null>(() =>
     supabase.from('applications').select(APPLICATION_SELECT).eq('id', id).maybeSingle());
@@ -57,18 +50,6 @@ export async function submitApplication(input: {
       p_government_fee: input.governmentFee,
     }));
   return res.ok ? { ok: true, data: { id: res.data.id, referenceCode: res.data.reference_code } } : res;
-}
-
-export async function setApplicationStatus(
-  applicationId: string, status: ApplicationStatus, note: string,
-): Promise<ApiResult<{ id: string; status: ApplicationStatus }>> {
-  const res = await guard<{ id: string; status: ApplicationStatus }>(() =>
-    supabase.rpc('admin_set_status', {
-      p_application_id: applicationId,
-      p_new_status: status,
-      p_note: note.trim() || null,
-    }));
-  return res;
 }
 
 export async function resubmitApplication(input: {
@@ -95,7 +76,7 @@ export interface PublicTracking {
   history: { toStatus: ApplicationStatus; createdAt: string }[];
 }
 
-/** Public lookup by reference code: status and dates only (no personal data, no admin notes). */
+/** Public lookup by reference code: status and dates only (no personal data, no review notes). */
 export async function trackByReference(reference: string): Promise<ApiResult<PublicTracking | null>> {
   const res = await guard<{
     reference_code: string; service_id: ServiceType; status: ApplicationStatus; created_at: string; updated_at: string;
@@ -114,16 +95,7 @@ export async function trackByReference(reference: string): Promise<ApiResult<Pub
   };
 }
 
-/** Calls onChange whenever an application row changes (admin dashboard live refresh). Returns an unsubscribe. */
-export function subscribeToApplications(onChange: () => void): () => void {
-  const channel = supabase
-    .channel(`applications-live-${Math.random().toString(36).slice(2)}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => onChange())
-    .subscribe();
-  return () => { void supabase.removeChannel(channel); };
-}
-
-/** Short-lived link to view a private document (RLS: owner or verified admin only). */
+/** Short-lived link to view one of your own private documents (storage policy: owner only). */
 export async function getDocumentUrl(storageKey: string, expiresInSeconds = 300): Promise<ApiResult<string>> {
   const res = await guard<{ signedUrl: string }>(() =>
     supabase.storage.from('visa-documents').createSignedUrl(storageKey, expiresInSeconds));

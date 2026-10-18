@@ -1,4 +1,4 @@
-import type { Service, Application, User, Agency, FAQ, Notification, ApplicationStatus } from './types';
+import type { Service, Application, User, FAQ, Notification, ApplicationStatus } from './types';
 
 export const SERVICES: Service[] = [
   {
@@ -132,7 +132,6 @@ export const SERVICES: Service[] = [
 export const MOCK_USERS: Record<string, User> = {
   'user-1': { id: 'user-1', email: 'customer@demo.com', name: 'أحمد محمد', role: 'customer', phone: '+971501234567', nationality: 'EG', createdAt: '2024-01-15', isVerified: true },
   'user-2': { id: 'user-2', email: 'agency@demo.com', name: 'خالد العلي', role: 'agency_owner', agencyId: 'agency-1', phone: '+971509876543', createdAt: '2024-01-10', isVerified: true },
-  'user-3': { id: 'user-3', email: 'admin@demo.com', name: 'مدير النظام', role: 'admin', createdAt: '2024-01-01', isVerified: true },
 };
 
 export const MOCK_APPLICATIONS: Application[] = [
@@ -143,8 +142,8 @@ export const MOCK_APPLICATIONS: Application[] = [
     documents: [{ id: 'doc-1', applicantId: 'appl-1', type: 'passport', fileName: 'passport.pdf', storageKey: 'docs/app-1/passport.pdf', status: 'approved', uploadedAt: '2024-02-01' }],
     statusHistory: [
       { id: 'ev-1', applicationId: 'app-1', fromStatus: null, toStatus: 'submitted', actorId: 'user-1', actorRole: 'customer', timestamp: '2024-02-01T10:00:00Z' },
-      { id: 'ev-2', applicationId: 'app-1', fromStatus: 'submitted', toStatus: 'document_review', actorId: 'user-3', actorRole: 'admin', note: 'تم الاستلام', timestamp: '2024-02-02T09:00:00Z' },
-      { id: 'ev-3', applicationId: 'app-1', fromStatus: 'document_review', toStatus: 'processing', actorId: 'user-3', actorRole: 'admin', note: 'جاري المعالجة', timestamp: '2024-02-03T14:00:00Z' },
+      { id: 'ev-2', applicationId: 'app-1', fromStatus: 'submitted', toStatus: 'document_review', actorId: 'system', actorRole: 'agency_staff', note: 'تم الاستلام', timestamp: '2024-02-02T09:00:00Z' },
+      { id: 'ev-3', applicationId: 'app-1', fromStatus: 'document_review', toStatus: 'processing', actorId: 'system', actorRole: 'agency_staff', note: 'جاري المعالجة', timestamp: '2024-02-03T14:00:00Z' },
     ],
     totalCost: 550, serviceFee: 250, governmentFee: 300, createdAt: '2024-02-01', updatedAt: '2024-02-03',
   },
@@ -155,7 +154,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     documents: [{ id: 'doc-2', applicantId: 'appl-2', type: 'passport', fileName: 'passport_f.pdf', storageKey: 'docs/app-2/passport.pdf', status: 'pending', uploadedAt: '2024-02-05' }],
     statusHistory: [
       { id: 'ev-4', applicationId: 'app-2', fromStatus: null, toStatus: 'submitted', actorId: 'user-1', actorRole: 'customer', timestamp: '2024-02-05T11:00:00Z' },
-      { id: 'ev-5', applicationId: 'app-2', fromStatus: 'submitted', toStatus: 'document_review', actorId: 'user-3', actorRole: 'admin', timestamp: '2024-02-06T08:00:00Z' },
+      { id: 'ev-5', applicationId: 'app-2', fromStatus: 'submitted', toStatus: 'document_review', actorId: 'system', actorRole: 'agency_staff', timestamp: '2024-02-06T08:00:00Z' },
     ],
     totalCost: 500, serviceFee: 300, governmentFee: 200, createdAt: '2024-02-05', updatedAt: '2024-02-06',
   },

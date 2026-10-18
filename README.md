@@ -32,14 +32,6 @@ This is a production-ready web application for an independent Saudi visa and tra
 - Application management table
 - Export capabilities
 
-### Admin Dashboard
-- Full application management
-- Status transitions with audit logging
-- Service catalog editor
-- Verification workflow
-- Agency management
-- System audit logs
-
 ## 🛠 Technology Stack
 
 - **Frontend:** React 18 + TypeScript + Vite
@@ -69,17 +61,9 @@ src/
     ├── ApplicationWizard.tsx  # Multi-step application flow
     ├── Tracker.tsx      # Public application tracker
     ├── Auth.tsx         # Login and registration
-    ├── Dashboard.tsx    # Customer, Agency, Admin dashboards
+    ├── Dashboard.tsx    # Customer and Agency dashboards
     └── StaticPages.tsx  # FAQ, Contact, Privacy, Terms, Agency Info
 ```
-
-## 🔐 Demo Accounts
-
-| Role | Email | Password | Description |
-|------|-------|----------|-------------|
-| Customer | customer@demo.com | demo123 | B2C customer dashboard |
-| Agency | agency@demo.com | demo123 | B2B agency dashboard |
-| Admin | admin@demo.com | demo123 | Admin/operator dashboard |
 
 ## 🚀 Getting Started
 
@@ -329,7 +313,6 @@ export function formatCurrency(amount: number, currencyCode: string, lang: 'ar' 
 | `/register` | Registration page |
 | `/dashboard` | Customer dashboard |
 | `/agency` | Agency dashboard |
-| `/admin` | Admin dashboard |
 | `/faq` | FAQ page |
 | `/contact` | Contact page |
 | `/privacy` | Privacy policy |
@@ -376,9 +359,7 @@ The `schema.sql` file contains the complete PostgreSQL schema with:
 - RLS policies ensure users can only access their own data
 - Document storage uses private buckets with signed URLs
 - Status transitions follow a defined state machine
-- Verification requires explicit operator action with audit logging
-- Payment is gated behind verification status
-- Admin actions are logged in audit trail
+- Customers read and write only their own applications (writes go through validating database functions)
 
 ## 📝 Service Types
 

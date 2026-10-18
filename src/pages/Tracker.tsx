@@ -15,7 +15,7 @@ export default function TrackerPage() {
   const [searched, setSearched] = useState(false);
   const [searching, setSearching] = useState(false);
   const [lookupError, setLookupError] = useState('');
-  // Result from Supabase: status and dates only (the database never returns personal data or admin notes here)
+  // Result from Supabase: status and dates only (the database never returns personal data or review notes here)
   const [remoteApp, setRemoteApp] = useState<Application | null>(null);
 
   const handleSearch = async () => {

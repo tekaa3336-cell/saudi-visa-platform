@@ -2,13 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useApp } from '../store';
 import { Card, Button, Input } from '../components/Layout';
-import { Plane, Eye, EyeOff, AlertCircle, Mail, CheckCircle2, ShieldCheck } from 'lucide-react';
-import { signUpWithEmail, resendConfirmationEmail, sendAdminOtp } from '../lib/auth';
-
-const OTP_RESEND_SECONDS = 60;
+import { Plane, Eye, EyeOff, AlertCircle, Mail, CheckCircle2 } from 'lucide-react';
+import { signUpWithEmail, resendConfirmationEmail } from '../lib/auth';
 
 export function LoginPage() {
-  const { login, verifyOtp, t } = useApp();
+  const { login, t } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
@@ -19,19 +17,6 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false });
 
-  // Step 2 (admins only): the code emailed after the password was accepted
-  const [otpEmail, setOtpEmail] = useState<string | null>(null);
-  const [code, setCode] = useState('');
-  const [cooldown, setCooldown] = useState(0);
-  const [resending, setResending] = useState(false);
-  const [info, setInfo] = useState('');
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setTimeout(() => setCooldown(c => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [cooldown]);
-
   const validateForm = () => {
     if (!email.trim()) return t('البريد الإلكتروني مطلوب', 'Email is required');
     if (!password.trim()) return t('كلمة المرور مطلوبة', 'Password is required');
@@ -39,7 +24,6 @@ export function LoginPage() {
   };
 
   const goAfterLogin = (role: string) => {
-    if (role === 'admin') return navigate('/admin', { replace: true });
     if (from && from.startsWith('/')) return navigate(from, { replace: true });
     navigate(role === 'agency_owner' ? '/agency' : '/dashboard', { replace: true });
   };
@@ -49,7 +33,6 @@ export function LoginPage() {
     if (submitting) return;
     setTouched({ email: true, password: true });
     setError('');
-    setInfo('');
 
     const validationError = validateForm();
     if (validationError) {
@@ -65,93 +48,8 @@ export function LoginPage() {
       setError(t(result.message.ar, result.message.en));
       return;
     }
-    if ('otpRequired' in result) {
-      setOtpEmail(result.email);
-      setCode('');
-      setCooldown(OTP_RESEND_SECONDS);
-      return;
-    }
     goAfterLogin(result.user.role);
   };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting || !otpEmail) return;
-    setError('');
-    setInfo('');
-    setSubmitting(true);
-    const result = await verifyOtp(otpEmail, code);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(t(result.message.ar, result.message.en));
-      return;
-    }
-    goAfterLogin(result.user.role);
-  };
-
-  const handleResend = async () => {
-    if (!otpEmail || cooldown > 0 || resending) return;
-    setResending(true);
-    setError('');
-    const result = await sendAdminOtp(otpEmail);
-    setResending(false);
-    if (result.ok) {
-      setCooldown(OTP_RESEND_SECONDS);
-      setInfo(t('أرسلنا رمزاً جديداً إلى بريدك الإلكتروني', 'We sent a new code to your email'));
-    } else {
-      setError(t(result.message.ar, result.message.en));
-    }
-  };
-
-  const backToPassword = () => {
-    setOtpEmail(null);
-    setCode('');
-    setPassword('');
-    setError('');
-    setInfo('');
-  };
-
-  if (otpEmail) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center px-4 py-10 animate-fade-in">
-        <Card className="w-full max-w-sm p-6">
-          <div className="text-center mb-5">
-            <div className="w-12 h-12 mx-auto bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center mb-3"><ShieldCheck size={20} className="text-white" /></div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('التحقق بخطوتين', 'Two-step verification')}</h1>
-            <p className="text-xs text-slate-500 mt-2">
-              {t('أرسلنا رمز تحقق إلى', 'We sent a verification code to')} <span dir="ltr" className="font-medium text-slate-700 dark:text-slate-300">{otpEmail}</span>
-              <br />{t('أدخله لإكمال تسجيل الدخول. يلزم رمز جديد في كل مرة.', 'Enter it to finish signing in. A new code is required every time.')}
-            </p>
-          </div>
-          <form onSubmit={handleVerify} className="space-y-3">
-            <Input
-              label={t('رمز التحقق', 'Verification code')}
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={8}
-              value={code}
-              onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-              placeholder="123456"
-              dir="ltr"
-              className="text-center tracking-[0.4em] text-lg"
-              autoFocus
-              required
-            />
-            {info && <div role="status" className="flex items-start gap-1.5 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded text-xs text-emerald-700"><CheckCircle2 size={12} className="mt-0.5 shrink-0" />{info}</div>}
-            {error && <div role="alert" className="flex items-start gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-600"><AlertCircle size={12} className="mt-0.5 shrink-0" />{error}</div>}
-            <Button type="submit" className="w-full" disabled={submitting || code.length < 6}>{submitting ? t('جارٍ التحقق...', 'Verifying...') : t('تأكيد ودخول', 'Verify & sign in')}</Button>
-          </form>
-          <div className="flex items-center justify-between mt-4 text-xs">
-            <button type="button" onClick={backToPassword} className="text-slate-500 hover:text-slate-700">{t('رجوع', 'Back')}</button>
-            <button type="button" onClick={handleResend} disabled={cooldown > 0 || resending} className="text-emerald-600 font-medium disabled:text-slate-400">
-              {cooldown > 0 ? t(`إعادة الإرسال بعد ${cooldown} ث`, `Resend in ${cooldown}s`) : t('إعادة إرسال الرمز', 'Resend code')}
-            </button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-10 animate-fade-in">

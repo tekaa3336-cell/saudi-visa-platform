@@ -11,7 +11,6 @@ import TrackerPage from './pages/Tracker';
 import { LoginPage, RegisterPage } from './pages/Auth';
 import { CustomerDashboard, AgencyDashboard } from './pages/Dashboard';
 import { FAQPage, ContactPage, PrivacyPage, TermsPage, AgencyInfoPage, ComingSoonPage } from './pages/StaticPages';
-import AdminDashboard from './pages/AdminDashboard';
 import ResubmitApplication from './pages/ResubmitApplication';
 
 function ServiceDetailWrapper() {
@@ -41,11 +40,6 @@ export default function App() {
             <Route path="/dashboard" element={<CustomerDashboard />} />
             <Route path="/applications/:id/resubmit" element={<ProtectedRoute><ResubmitApplication /></ProtectedRoute>} />
             <Route path="/agency" element={<AgencyDashboard />} />
-            <Route path="/admin" element={
-              <ProtectedRoute requireAdmin>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
             <Route path="/hotels" element={<ComingSoonPage type="hotels" />} />
             <Route path="/flights" element={<ComingSoonPage type="flights" />} />
             <Route path="*" element={<Navigate to="/" replace />} />

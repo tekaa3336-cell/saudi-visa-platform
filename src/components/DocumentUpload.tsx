@@ -58,7 +58,7 @@ export function DocumentUpload({
 
     try {
       // Files go to the PRIVATE "visa-documents" bucket under the user's own folder (<user id>/...).
-      // Storage policies only allow that folder, and only the owner or a verified admin can read it back.
+      // Storage policies only allow that folder, and only the owner can read it back.
       const { data: sessionData } = await supabase.auth.getSession();
       const uid = sessionData.session?.user.id;
       if (!uid) {

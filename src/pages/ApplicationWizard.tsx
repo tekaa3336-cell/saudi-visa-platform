@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useApp } from '../store';
 import { SERVICES } from '../data';
 import { convertCurrency, formatCurrency } from '../preferences';
-import { Card, Button, Input, Select, Stepper } from '../components/Layout';
+import { Card, Button, Input, Stepper } from '../components/Layout';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { DocumentUpload, type UploadedFileData } from '../components/DocumentUpload';
 import { submitApplication } from '../lib/applicationsApi';
 import { RESIDENCE_COUNTRIES } from '../data/countries';
 import { NATIONALITIES } from '../data/nationalities';
-import { Upload, CheckCircle2, FileText, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
+import { CheckCircle2, User, Users, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Applicant } from '../types';
 import {
@@ -23,7 +23,6 @@ import {
 export default function ApplicationWizard() {
   const { serviceId } = useParams<{ serviceId: string }>();
   const { state, t } = useApp();
-  const navigate = useNavigate();
   const lang = state.lang;
   const currency = state.preferences.currency;
   const service = SERVICES.find(s => s.id === serviceId);

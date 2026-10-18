@@ -18,7 +18,7 @@ import {
 
 type Field = 'fullName' | 'nationality' | 'passportNumber' | 'passportExpiry' | 'dateOfBirth' | 'countryOfResidence' | 'phone' | 'email';
 
-/** The applicant fixes what the admin asked for ("Action required") and sends the application back for review. */
+/** The applicant fixes what the review team asked for ("Action required") and sends the application back for review. */
 export default function ResubmitApplication() {
   const { id } = useParams<{ id: string }>();
   const { state, t } = useApp();
