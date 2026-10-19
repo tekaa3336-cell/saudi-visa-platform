@@ -213,6 +213,11 @@ const DB_MESSAGES: Record<string, DbMessage> = {
   INVALID_EMAIL: { ar: 'البريد الإلكتروني غير صالح', en: 'Invalid email address' },
 };
 
+const NOT_SET_UP: DbMessage = {
+  ar: 'قاعدة البيانات غير مهيأة بعد. شغّل ملف supabase/fix_applications_rpc.sql في Supabase ثم أعد المحاولة',
+  en: 'The database is not set up yet. Run supabase/fix_applications_rpc.sql in Supabase, then try again',
+};
+
 const GENERIC: DbMessage = {
   ar: 'تعذّر إكمال العملية. حاول مرة أخرى',
   en: 'The operation could not be completed. Please try again',
@@ -228,6 +233,9 @@ export function mapDbError(err: { message?: string; code?: string } | null | und
   for (const code of Object.keys(DB_MESSAGES)) {
     if (text.includes(code)) return DB_MESSAGES[code];
   }
+  // PGRST202/PGRST203: function not found / ambiguous; PGRST200/PGRST205 and 42P01/42703: missing relation or column
+  if (/^PGRST20[0235]$/.test(err?.code ?? '') || err?.code === '42P01' || err?.code === '42703'
+      || /schema cache|does not exist/i.test(text)) return NOT_SET_UP;
   if (err?.code === '42501' || /permission denied|row-level security/i.test(text)) return DB_MESSAGES.FORBIDDEN;
   if (/failed to fetch|network/i.test(text)) return NETWORK;
   return GENERIC;
