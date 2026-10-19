@@ -1,5 +1,5 @@
 // Everything the app reads from / writes to Supabase for visa applications.
-// Reads rely on Row Level Security: a customer only receives their own rows, 
+// Reads rely on Row Level Security: a customer only receives their own rows.
 // Writes go through database functions (see schema.sql) that validate the data and the status rules.
 
 import { supabase } from './supabaseClient';
@@ -14,9 +14,14 @@ export type ApiResult<T> = { ok: true; data: T } | { ok: false; message: DbMessa
 async function guard<T>(run: () => PromiseLike<{ data: T | null; error: { message?: string; code?: string } | null }>): Promise<ApiResult<T>> {
   try {
     const { data, error } = await run();
-    if (error) return { ok: false, message: mapDbError(error) };
+    if (error) {
+      // Keep the raw error visible in the browser console: the user-facing message is deliberately short
+      console.error('[supabase]', error);
+      return { ok: false, message: mapDbError(error) };
+    }
     return { ok: true, data: data as T };
   } catch (err) {
+    console.error('[supabase]', err);
     return { ok: false, message: mapDbError(err as Error) };
   }
 }

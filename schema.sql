@@ -843,3 +843,8 @@ BEGIN
     ALTER PUBLICATION supabase_realtime DROP TABLE public.applications;
   END IF;
 END $$;
+
+-- ============================================
+-- 19. Make the REST API (PostgREST) pick up the new tables and functions right away
+-- ============================================
+NOTIFY pgrst, 'reload schema';

@@ -1,5 +1,6 @@
 # Supabase setup
 
+0. If the app shows "تعذّر إكمال العملية" or `/rest/v1/rpc/submit_application` returns 400/404, run `supabase/fix_applications_rpc.sql` instead of step 1: it first drops every conflicting function overload and old policy, then applies the full schema and reloads the API cache.
 1. Run `schema.sql` in the Supabase SQL Editor. It is safe to run again, it renames an old `applications`
    table (the one with `applicants_data`) to `applications_legacy`, and it removes the objects of the earlier
    admin feature (allowlist table, admin functions and policies) if they exist.
