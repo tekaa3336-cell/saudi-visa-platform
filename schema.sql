@@ -14,20 +14,58 @@
 -- ============================================================================
 
 -- ============================================
--- 0. MIGRATION: legacy `applications` table from supabase-schema.sql
---    (it had a single JSONB column `applicants_data` and is incompatible with this schema)
+-- 0. MIGRATION: tables of an older/different layout
+--    If applications, applicants, documents or status_events already exist but do not have the columns this
+--    schema needs (for example an older `applications` without `service_id`, or the one in
+--    supabase-schema.sql with a JSONB column `applicants_data`), CREATE TABLE IF NOT EXISTS would silently
+--    keep the old shape and later statements would fail ("column service_id does not exist").
+--    Those tables are renamed to <name>_legacy (data is kept, nothing is deleted) and recreated below.
 -- ============================================
 DO $$
+DECLARE
+  spec RECORD;
+  t TEXT;
+  col TEXT;
+  incompatible BOOLEAN := FALSE;
+  r RECORD;
+  legacy TEXT;
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'applications' AND column_name = 'applicants_data'
-  ) THEN
-    ALTER TABLE public.applications RENAME TO applications_legacy;
-    ALTER INDEX IF EXISTS public.applications_pkey RENAME TO applications_legacy_pkey;
-    ALTER INDEX IF EXISTS public.idx_applications_user_id RENAME TO idx_applications_legacy_user_id;
-    ALTER INDEX IF EXISTS public.idx_applications_status RENAME TO idx_applications_legacy_status;
-    ALTER INDEX IF EXISTS public.idx_applications_created_at RENAME TO idx_applications_legacy_created_at;
+  FOR spec IN SELECT * FROM (VALUES
+    ('applications', ARRAY['id','reference_code','service_id','user_id','agency_id','status','payment_status','total_cost','service_fee','government_fee','notes','created_at','updated_at']),
+    ('applicants', ARRAY['id','application_id','full_name','nationality','passport_number','passport_expiry','date_of_birth','country_of_residence','phone','email','created_at']),
+    ('documents', ARRAY['id','application_id','applicant_id','document_type','file_name','storage_key','mime_type','file_size','status','uploaded_by','reviewed_by','reviewed_at','review_notes','created_at']),
+    ('status_events', ARRAY['id','application_id','from_status','to_status','actor_id','actor_role','note','created_at'])
+  ) AS v(tbl, cols)
+  LOOP
+    IF to_regclass('public.' || spec.tbl) IS NOT NULL THEN
+      FOREACH col IN ARRAY spec.cols LOOP
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = spec.tbl AND column_name = col
+        ) THEN
+          incompatible := TRUE;
+          RAISE NOTICE 'public.% has no column % -> old layout', spec.tbl, col;
+        END IF;
+      END LOOP;
+    END IF;
+  END LOOP;
+
+  IF incompatible THEN
+    -- rename all four together so the foreign keys between them stay consistent
+    FOREACH t IN ARRAY ARRAY['status_events','documents','applicants','applications'] LOOP
+      IF to_regclass('public.' || t) IS NOT NULL THEN
+        legacy := t || '_legacy';
+        IF to_regclass('public.' || legacy) IS NOT NULL THEN
+          legacy := t || '_legacy_' || to_char(clock_timestamp(), 'YYYYMMDDHH24MISS');
+        END IF;
+        EXECUTE format('ALTER TABLE public.%I RENAME TO %I', t, legacy);
+        -- free the index / constraint-index names (e.g. applications_pkey) for the new tables
+        FOR r IN SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = legacy LOOP
+          EXECUTE format('ALTER INDEX public.%I RENAME TO %I', r.indexname, left(r.indexname, 40) || '_' || left(md5(legacy || r.indexname), 8));
+        END LOOP;
+        RAISE NOTICE 'renamed public.% to public.%', t, legacy;
+      END IF;
+    END LOOP;
   END IF;
 END $$;
 
@@ -47,6 +85,17 @@ CREATE TABLE IF NOT EXISTS profiles (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- profiles: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS nationality TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country_of_residence TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'customer';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS agency_id UUID;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ============================================
 -- 2. AGENCIES
@@ -63,6 +112,16 @@ CREATE TABLE IF NOT EXISTS agencies (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- agencies: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS owner_id UUID;
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'bronze';
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS trade_license TEXT;
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS contact_email TEXT;
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE agencies ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS fk_agency;
 ALTER TABLE profiles ADD CONSTRAINT fk_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE SET NULL;
@@ -88,6 +147,22 @@ CREATE TABLE IF NOT EXISTS services (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- services: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE services ADD COLUMN IF NOT EXISTS name_ar TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS name_en TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS description_ar TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS description_en TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS eligibility_ar TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS eligibility_en TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS processing_time_ar TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS processing_time_en TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS service_fee DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS government_fee DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'AED';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE services ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 CREATE TABLE IF NOT EXISTS service_requirements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -97,6 +172,12 @@ CREATE TABLE IF NOT EXISTS service_requirements (
   is_required BOOLEAN DEFAULT TRUE,
   sort_order INTEGER DEFAULT 0
 );
+-- service_requirements: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE service_requirements ADD COLUMN IF NOT EXISTS service_id TEXT;
+ALTER TABLE service_requirements ADD COLUMN IF NOT EXISTS document_name_ar TEXT;
+ALTER TABLE service_requirements ADD COLUMN IF NOT EXISTS document_name_en TEXT;
+ALTER TABLE service_requirements ADD COLUMN IF NOT EXISTS is_required BOOLEAN DEFAULT TRUE;
+ALTER TABLE service_requirements ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS wholesale_tiers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -106,6 +187,12 @@ CREATE TABLE IF NOT EXISTS wholesale_tiers (
   discount_percent DECIMAL(5,2) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- wholesale_tiers: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE wholesale_tiers ADD COLUMN IF NOT EXISTS service_id TEXT;
+ALTER TABLE wholesale_tiers ADD COLUMN IF NOT EXISTS tier_name TEXT;
+ALTER TABLE wholesale_tiers ADD COLUMN IF NOT EXISTS min_applications INTEGER;
+ALTER TABLE wholesale_tiers ADD COLUMN IF NOT EXISTS discount_percent DECIMAL(5,2);
+ALTER TABLE wholesale_tiers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ============================================
 -- 4. APPLICATIONS & APPLICANTS
@@ -198,6 +285,14 @@ CREATE TABLE IF NOT EXISTS verification_records (
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- verification_records: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE verification_records ADD COLUMN IF NOT EXISTS application_id UUID;
+ALTER TABLE verification_records ADD COLUMN IF NOT EXISTS verified_by UUID;
+ALTER TABLE verification_records ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE verification_records ADD COLUMN IF NOT EXISTS official_ref_number TEXT;
+ALTER TABLE verification_records ADD COLUMN IF NOT EXISTS documents_checked TEXT[];
+ALTER TABLE verification_records ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE verification_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ============================================
 -- 7. PAYMENTS
@@ -214,6 +309,16 @@ CREATE TABLE IF NOT EXISTS payments (
   paid_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- payments: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS application_id UUID;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS amount DECIMAL(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'AED';
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS transaction_ref TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS due_at TIMESTAMPTZ;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ============================================
 -- 8. NOTIFICATIONS
@@ -230,6 +335,16 @@ CREATE TABLE IF NOT EXISTS notifications (
   link TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- notifications: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title_ar TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title_en TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message_ar TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message_en TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'info';
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ============================================
 -- 9. CONTACT INQUIRIES & FAQ
@@ -244,6 +359,14 @@ CREATE TABLE IF NOT EXISTS contact_inquiries (
   status TEXT DEFAULT 'new' CHECK (status IN ('new', 'in_progress', 'resolved')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- contact_inquiries: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE contact_inquiries ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE contact_inquiries ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE contact_inquiries ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE contact_inquiries ADD COLUMN IF NOT EXISTS subject TEXT;
+ALTER TABLE contact_inquiries ADD COLUMN IF NOT EXISTS message TEXT;
+ALTER TABLE contact_inquiries ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new';
+ALTER TABLE contact_inquiries ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 CREATE TABLE IF NOT EXISTS faqs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -256,6 +379,15 @@ CREATE TABLE IF NOT EXISTS faqs (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- faqs: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE faqs ADD COLUMN IF NOT EXISTS question_ar TEXT;
+ALTER TABLE faqs ADD COLUMN IF NOT EXISTS question_en TEXT;
+ALTER TABLE faqs ADD COLUMN IF NOT EXISTS answer_ar TEXT;
+ALTER TABLE faqs ADD COLUMN IF NOT EXISTS answer_en TEXT;
+ALTER TABLE faqs ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';
+ALTER TABLE faqs ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE faqs ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE faqs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ============================================
 -- 10. AUDIT LOGS
@@ -271,6 +403,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   user_agent TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- audit_logs: add any column an older version of this table lacks (no-op on a fresh database)
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_type TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_id TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details JSONB;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ============================================
 -- 11. HELPER FUNCTIONS (used by policies and RPCs)
